@@ -1,0 +1,10 @@
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Agar URL me /public ho to redirect kare without /public
+  RewriteCond %{REQUEST_URI} ^/public(.*)$ [NC]
+  RewriteRule ^public(.*)$ /%1 [L,R=301]
+
+  # Normal Laravel routing
+  RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>
