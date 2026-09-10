@@ -47,7 +47,7 @@ class PageSectionsRelationManager extends RelationManager
             Builder::make('section')
                 ->label('Page Sections')
                 ->disableItemMovement()
-                    ->disableItemCreation()
+                  //  ->disableItemCreation()
                     ->disableItemDeletion()
                 ->blocks([
 

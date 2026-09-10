@@ -17,8 +17,15 @@ class Trips extends Model
         "menu_order",
         "meta_title",
         "meta_description",
-        "meta_keywords"
+        "meta_keywords",
+      "meta_schema",
+        "faq"
     ];
+  
+    protected $casts = [
+        'faq' => 'array',
+    ];
+
     public function getThumbnailAttribute($value)
     {
         if (request()->is('api/*')) {

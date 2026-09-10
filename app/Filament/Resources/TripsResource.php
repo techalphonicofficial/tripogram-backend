@@ -18,7 +18,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Filament\Forms\Set;
 use Illuminate\Support\Str;
-
+use Filament\Forms\Components\Repeater;
 use Illuminate\Support\Facades\DB;
 
 use Illuminate\Support\Facades\Auth;
@@ -119,10 +119,10 @@ class TripsResource extends Resource
                 TextInput::make('heading')
                     ->required()
                     ->live(onBlur: true)
-                    ->afterStateUpdated(fn(Set $set, ?string $state) => $set('slug', Str::slug($state)))
+                   
                     ->maxLength(191),
                 TextInput::make('slug')
-                    ->unique(column: 'slug', ignoreRecord: true)
+                  
                     ->required()
                     ->label('Trip Slug'),
                 RichEditor::make('content')
@@ -137,6 +137,24 @@ class TripsResource extends Resource
                     ->rows(4)->columnSpanFull(),
                 Textarea::make('meta_keywords')
                     ->maxLength(191)->columnSpanFull(),
+              Textarea::make('meta_schema')
+    ->label('Meta Schema (JSON)')
+    ->rows(8)
+    ->columnSpanFull(),
+
+Repeater::make('faq')
+    ->schema([
+        TextInput::make('question')
+            ->required()
+            ->maxLength(255),
+
+        Textarea::make('answer')
+            ->required()
+            ->rows(3),
+    ])
+    ->columnSpanFull()
+    ->collapsible()
+    ->itemLabel(fn (array $state): ?string => $state['question'] ?? null),
             ]);
     }
 

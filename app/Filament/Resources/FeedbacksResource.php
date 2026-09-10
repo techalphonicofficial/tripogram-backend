@@ -21,7 +21,6 @@ class FeedbacksResource extends Resource
     protected static ?string $navigationGroup = 'Enquiries';
     protected static ?int $navigationSort = 4;
 
-    // ✅ Navigation Permission Logic
     public static function shouldRegisterNavigation(): bool
     {
         $user = Auth::user();
@@ -30,7 +29,6 @@ class FeedbacksResource extends Resource
             return false;
         }
 
-        // Admin bypass
         if ($user->role === 'admin') {
             return true;
         }
@@ -57,70 +55,118 @@ class FeedbacksResource extends Resource
         return in_array('feedbacks', $permissionResources);
     }
 
-    // ✅ Form (Create / Edit)
+    // FORM
     public static function form(Form $form): Form
     {
         return $form->schema([
 
+            Forms\Components\TextInput::make('booking_id')
+                ->numeric()
+                ->required(),
+
+		Forms\Components\Select::make('member_id')
+   		 ->label('Member Name')
+    		->relationship('infoGet', 'name')
+    		->searchable()
+    		->preload()
+    		->required(),
             Forms\Components\TextInput::make('name')
-                ->label('Name')
                 ->required()
                 ->maxLength(255),
 
-            Forms\Components\TextInput::make('email')
-                ->email()
-                ->required(),
-
-            Forms\Components\TextInput::make('phone')
+            Forms\Components\TextInput::make('contact')
                 ->required()
                 ->tel(),
 
-            Forms\Components\Textarea::make('message')
-                ->label('Feedback')
-                ->required()
-                ->rows(5)
-                ->columnSpanFull(),
+            Forms\Components\TextInput::make('destination')
+                ->required(),
 
-            Forms\Components\Select::make('rating')
+            Forms\Components\DatePicker::make('departure_date'),
+
+            Forms\Components\Select::make('travel_rating')
                 ->options([
                     1 => '⭐',
                     2 => '⭐⭐',
                     3 => '⭐⭐⭐',
                     4 => '⭐⭐⭐⭐',
                     5 => '⭐⭐⭐⭐⭐',
-                ])
-                ->required(),
+                ]),
 
-            Forms\Components\TextInput::make('booking_id')
-                ->numeric()
-                ->label('Booking ID')
-                ->nullable(),
+            Forms\Components\Select::make('stay_rating')
+                ->options([
+                    1 => '⭐',
+                    2 => '⭐⭐',
+                    3 => '⭐⭐⭐',
+                    4 => '⭐⭐⭐⭐',
+                    5 => '⭐⭐⭐⭐⭐',
+                ]),
+
+            Forms\Components\Select::make('meal_rating')
+                ->options([
+                    1 => '⭐',
+                    2 => '⭐⭐',
+                    3 => '⭐⭐⭐',
+                    4 => '⭐⭐⭐⭐',
+                    5 => '⭐⭐⭐⭐⭐',
+                ]),
+
+            Forms\Components\Select::make('captain_rating')
+                ->options([
+                    1 => '⭐',
+                    2 => '⭐⭐',
+                    3 => '⭐⭐⭐',
+                    4 => '⭐⭐⭐⭐',
+                    5 => '⭐⭐⭐⭐⭐',
+                ]),
+
+            Forms\Components\Select::make('itinerary_rating')
+                ->options([
+                    1 => '⭐',
+                    2 => '⭐⭐',
+                    3 => '⭐⭐⭐',
+                    4 => '⭐⭐⭐⭐',
+                    5 => '⭐⭐⭐⭐⭐',
+                ]),
+
+            Forms\Components\TextInput::make('overall_rating')
+                ->numeric(),
+
+            Forms\Components\Textarea::make('suggestion')
+                ->rows(5)
+                ->columnSpanFull(),
         ]);
     }
 
-    // ✅ Table View
+    // TABLE
     public static function table(Table $table): Table
     {
         return $table
+           ->defaultSort('id', 'desc')
+
             ->columns([
+
+                Tables\Columns\TextColumn::make('booking.booking_id')
+    ->label('Booking No')
+    ->sortable()
+    ->searchable(),
+
+Tables\Columns\TextColumn::make('infoGet.name')
+    ->label('Member Name')
+    ->sortable()
+    ->searchable(),
 
                 Tables\Columns\TextColumn::make('name')
                     ->searchable(),
 
-                Tables\Columns\TextColumn::make('email')
-                    ->searchable(),
+                Tables\Columns\TextColumn::make('contact'),
 
-                Tables\Columns\TextColumn::make('phone'),
+                Tables\Columns\TextColumn::make('destination'),
 
-                Tables\Columns\TextColumn::make('message')
-                    ->label('Feedback')
+                Tables\Columns\TextColumn::make('overall_rating')
+                    ->label('Overall Rating'),
+
+                Tables\Columns\TextColumn::make('suggestion')
                     ->limit(40),
-
-                Tables\Columns\TextColumn::make('rating')
-                    ->label('Rating'),
-
-                Tables\Columns\TextColumn::make('booking_id')
-                    ->label('Booking ID'),
 
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime('d M Y H:i'),
@@ -135,13 +181,11 @@ class FeedbacksResource extends Resource
             ]);
     }
 
-    // ✅ Relations (optional future use)
     public static function getRelations(): array
     {
         return [];
     }
 
-    // ✅ Pages
     public static function getPages(): array
     {
         return [
@@ -150,4 +194,4 @@ class FeedbacksResource extends Resource
             'edit' => Pages\EditFeedbacks::route('/{record}/edit'),
         ];
     }
-}
+}	

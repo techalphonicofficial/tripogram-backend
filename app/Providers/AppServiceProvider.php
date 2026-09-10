@@ -27,6 +27,18 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('enquiry', function (Request $request) {
             return Limit::perMinutes(2)->by($request->ip());
         });
+
+        // ✅ Dynamic URL & HTTPS support for ngrok local development
+        if (isset($_SERVER['HTTP_X_FORWARDED_HOST']) && str_contains($_SERVER['HTTP_X_FORWARDED_HOST'], 'ngrok')) {
+            $host = $_SERVER['HTTP_X_FORWARDED_HOST'];
+            $proto = $_SERVER['HTTP_X_FORWARDED_PROTO'] ?? 'http';
+            config(['app.url' => "$proto://$host"]);
+            \Illuminate\Support\Facades\URL::forceRootUrl("$proto://$host");
+            if ($proto === 'https') {
+                \Illuminate\Support\Facades\URL::forceScheme('https');
+            }
+        }
     }
+  
 }
 

@@ -15,12 +15,15 @@ class LatestBlogDetail extends Model
         'image',
         'alt',
         'content',
+      'created_at',
+        'updated_at',
     ];
 
     /**
      * Relationship to the parent blog
      * Each detail belongs to one blog
      */
+      public $timestamps = true;
     public function blog()
     {
         return $this->belongsTo(Blogs::class, 'post_id', 'id');

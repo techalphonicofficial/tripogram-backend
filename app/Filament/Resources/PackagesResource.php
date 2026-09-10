@@ -23,6 +23,7 @@ use Filament\Tables\Actions\ViewAction;
 use Filament\Forms\Components\Tabs\Tab;
 use Filament\Tables\Actions\Action;
 use Filament\Notifications\Notification;
+use Illuminate\Support\Facades\Storage; // ✅ SIRF YEH ADD KIYA
 
 class PackagesResource extends Resource
 {
@@ -39,6 +40,7 @@ class PackagesResource extends Resource
     
     public static function shouldRegisterNavigation(): bool
     {
+        // YAHAN KUCH MAT BADALNA - SAME RAHEGA
         $user = Auth::user();
 
         if (!$user) {
@@ -190,7 +192,13 @@ class PackagesResource extends Resource
                                         ->options(\App\Models\Destinations::pluck('name', 'id'))
                                         ->searchable()
                                         ->required(),
-
+TextInput::make('package_code')
+    ->label('Package Code')
+    ->maxLength(50)
+    ->required()
+    ->unique(column: 'package_code', ignoreRecord: true)
+    ->helperText('Unique code for this package (e.g., DL001, UK002, HP003)')
+    ->placeholder('Enter package code'),
                                     TextInput::make('title')
                                         ->live(onBlur: true)
                                         ->afterStateUpdated(fn(Set $set, ?string $state) => $set('slug', Str::slug($state)))
@@ -198,7 +206,7 @@ class PackagesResource extends Resource
                                         ->label('Package Title'),
 
                                     TextInput::make('slug')
-                                        ->unique(column: 'slug', ignoreRecord: true)
+                                        
                                         ->required()
                                         ->label('Package Slug'),
 
@@ -211,12 +219,19 @@ class PackagesResource extends Resource
                                         ->rules(['regex:/^\d+N-\d+D$/'])
                                         ->label('Duration (Format: 2N-3D)')
                                         ->required(),
-
+			TextInput::make('day')
+    ->label('Number of Days')
+    ->numeric()
+    ->minValue(1)
+    ->maxValue(30)
+    ->required()
+    ->default(0)
+    ->helperText('Reminder: Day balance payment before departure'),					
                                     TextInput::make('pickup')->required()->label('Pickup Location'),
                                     TextInput::make('drop')->required()->label('Drop Location'),
-                                    TextInput::make('age_group_min')->numeric()->label('Min Age')->nullable(),
+                                    TextInput::make('age_group')->label('Age Group')->nullable(),
                                   
-                                    TextInput::make('age_group_max')->numeric()->label('Max Age')->nullable(),
+                                 
                                     
                                     Toggle::make('is_active')->label('Active')->default(true),
                                     Toggle::make('is_trending')->label('Trending')->default(false),
@@ -248,7 +263,7 @@ class PackagesResource extends Resource
                                             
                                             TextInput::make('alt_text')
                                                 ->label('Alt Text')
-                                                ->required()
+                                                
                                                 ->columnSpan(1),
                                         ])
                                         ->columns(2)
@@ -260,7 +275,9 @@ class PackagesResource extends Resource
                                         ->cloneable()
                                         ->itemLabel(fn (array $state): ?string => $state['alt_text'] ?? 'Gallery Image'),
                                 ]),
-
+Toggle::make('show_book_no_button')
+                                        ->label('Show book now button')
+                                        ->default(true),
                             Forms\Components\Section::make('Package Content')
                                 ->schema([
                                     RichEditor::make('description')
@@ -351,6 +368,9 @@ class PackagesResource extends Resource
                                     Toggle::make('status')
                                         ->label('Active')
                                         ->default(true),
+                                  
+                                  
+                                    
                                 ])
                                 ->collapsible()
                                 ->grid(2)
@@ -452,335 +472,496 @@ class PackagesResource extends Resource
                 ->columnSpanFull()
         ]);
     }
+   public static function table(Table $table): Table
+{
+    return $table
+        ->columns([
+            // ... TUMHARE SARE COLUMNS JAISE HAIN WAISE RAHENGE
+            Tables\Columns\TextColumn::make('sort_order')
+                ->label('Sort Order')
+                ->sortable()
+                ->searchable()
+                ->default(0),
+            Tables\Columns\TextColumn::make('id')->sortable(),
+            Tables\Columns\TextColumn::make('title')->searchable()->sortable(),
+            Tables\Columns\TextColumn::make('slug')->searchable()->sortable(),
+            
+            Tables\Columns\TextColumn::make('trips.heading')
+                ->label('Trips/Categories')
+                ->badge()
+                ->color('info')
+                ->separator(',')
+                ->listWithLineBreaks()
+                ->limitList(3)
+                ->expandableLimitedList()
+                ->searchable(),
+            
+            Tables\Columns\TextColumn::make('duration'),
+            Tables\Columns\TextColumn::make('starting_price')->money('INR'),
+            Tables\Columns\ToggleColumn::make('is_trending'),
+          	
+            Tables\Columns\ToggleColumn::make('is_active'),
+             Tables\Columns\ToggleColumn::make('show_book_no_button')
+          		->label('Show Book Now Button'),
+            Tables\Columns\TextColumn::make('slot')
+                ->badge()
+                ->color(fn ($state) => match ($state) {
+                    'morning' => 'success',
+                    'afternoon' => 'warning',
+                    'evening' => 'danger',
+                    default => 'gray',
+                }),
+            Tables\Columns\TextColumn::make('booking_amount')
+                ->money('INR')
+                ->sortable(),
+            Tables\Columns\TextColumn::make('created_at')->dateTime('d M Y'),
+        ])
+        ->defaultSort('sort_order', 'asc')
+        ->reorderable('sort_order')
+        ->filters([
+            // ... TUMHARE SARE FILTERS JAISE HAIN
+            Tables\Filters\SelectFilter::make('trips')
+                ->label('Filter by Trips/Categories')
+                ->relationship('trips', 'heading')
+                ->multiple()
+                ->searchable()
+                ->preload(),
 
-    public static function table(Table $table): Table
-    {
-        return $table
-            ->columns([
-                Tables\Columns\TextColumn::make('sort_order')
-                    ->label('Sort Order')
-                    ->sortable()
-                    ->searchable()
-                    ->default(0),
-                Tables\Columns\TextColumn::make('id')->sortable(),
-                Tables\Columns\TextColumn::make('title')->searchable()->sortable(),
-                Tables\Columns\TextColumn::make('slug')->searchable()->sortable(),
-                
-                // MULTIPLE TRIPS COLUMN
-                Tables\Columns\TextColumn::make('trips.heading')
-                    ->label('Trips/Categories')
-                    ->badge()
-                    ->color('info')
-                    ->separator(',')
-                    ->listWithLineBreaks()
-                    ->limitList(3)
-                    ->expandableLimitedList()
-                    ->searchable(),
-                
-                Tables\Columns\TextColumn::make('duration'),
-                Tables\Columns\TextColumn::make('starting_price')->money('INR'),
-                Tables\Columns\ToggleColumn::make('is_trending'),
-                Tables\Columns\ToggleColumn::make('is_active'),
-                Tables\Columns\TextColumn::make('slot')
-                    ->badge()
-                    ->color(fn ($state) => match ($state) {
-                        'morning' => 'success',
-                        'afternoon' => 'warning',
-                        'evening' => 'danger',
-                        default => 'gray',
-                    }),
-                Tables\Columns\TextColumn::make('booking_amount')
-                    ->money('INR')
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('created_at')->dateTime('d M Y'),
-            ])
-            ->defaultSort('sort_order', 'asc')
-            ->reorderable('sort_order')
-            ->filters([
-                // MULTIPLE TRIPS FILTER
-                Tables\Filters\SelectFilter::make('trips')
-                    ->label('Filter by Trips/Categories')
-                    ->relationship('trips', 'heading')
-                    ->multiple()
-                    ->searchable()
-                    ->preload(),
-
-                Tables\Filters\SelectFilter::make('destination_id')
-                    ->label('Destination')
-                    ->relationship('destination', 'name')
-                    ->searchable(),
-              
-                Tables\Filters\SelectFilter::make('slug')
-                    ->label('Slug')
-                    ->options(
-                        Packages::pluck('slug', 'slug')->toArray()
-                    )
-                    ->searchable(),
-                
-                Tables\Filters\Filter::make('slug_search')
-                    ->label('Search by Slug')
-                    ->form([
-                        TextInput::make('slug')
-                            ->label('Slug')
-                            ->placeholder('Enter slug to search...'),
-                    ])
-                    ->query(function ($query, array $data) {
-                        return $query->when(
-                            $data['slug'],
-                            fn($query, $slug) => $query->where('slug', 'like', "%{$slug}%"),
-                        );
-                    }),
-            ])
-            ->actions([
-                Action::make('moveUp')
-                    ->label('')
-                    ->icon('heroicon-o-arrow-up')
-                    ->color('success')
-                    ->action(function ($record) {
-                        $currentOrder = $record->sort_order;
-                        
-                        $previousRecord = Packages::where('sort_order', '<', $currentOrder)
-                            ->orderBy('sort_order', 'desc')
-                            ->first();
-                        
-                        if ($previousRecord) {
-                            $tempOrder = $previousRecord->sort_order;
-                            $previousRecord->update(['sort_order' => $currentOrder]);
-                            $record->update(['sort_order' => $tempOrder]);
-                            
-                            Notification::make()
-                                ->title('Moved up successfully')
-                                ->success()
-                                ->send();
-                        } else {
-                            Notification::make()
-                                ->title('Already at the top')
-                                ->warning()
-                                ->send();
-                        }
-                    })
-                    ->visible(fn ($record) => $record->sort_order > 0),
-                
-                Action::make('moveDown')
-                    ->label('')
-                    ->icon('heroicon-o-arrow-down')
-                    ->color('warning')
-                    ->action(function ($record) {
-                        $currentOrder = $record->sort_order;
-                        
-                        $nextRecord = Packages::where('sort_order', '>', $currentOrder)
-                            ->orderBy('sort_order', 'asc')
-                            ->first();
-                        
-                        if ($nextRecord) {
-                            $tempOrder = $nextRecord->sort_order;
-                            $nextRecord->update(['sort_order' => $currentOrder]);
-                            $record->update(['sort_order' => $tempOrder]);
-                            
-                            Notification::make()
-                                ->title('Moved down successfully')
-                                ->success()
-                                ->send();
-                        } else {
-                            Notification::make()
-                                ->title('Already at the bottom')
-                                ->warning()
-                                ->send();
-                        }
-                    }),
+            Tables\Filters\SelectFilter::make('destination_id')
+                ->label('Destination')
+                ->relationship('destination', 'name')
+                ->searchable(),
+          
+            Tables\Filters\SelectFilter::make('slug')
+                ->label('Slug')
+                ->options(
+                    Packages::pluck('slug', 'slug')->toArray()
+                )
+                ->searchable(),
+            
+            Tables\Filters\Filter::make('slug_search')
+                ->label('Search by Slug')
+                ->form([
+                    TextInput::make('slug')
+                        ->label('Slug')
+                        ->placeholder('Enter slug to search...'),
+                ])
+                ->query(function ($query, array $data) {
+                    return $query->when(
+                        $data['slug'],
+                        fn($query, $slug) => $query->where('slug', 'like', "%{$slug}%"),
+                    );
+                }),
+        ])
+        ->actions([
+            // ✅ SIRF YAHAN DUPLICATE BUTTON ADD KARO - PEEHLE WALE SAB BUTTONS RAHENGE
+            Action::make('duplicate')
+                ->label('Duplicate')
+                ->icon('heroicon-o-document-duplicate')
+                ->color('gray')
+                ->requiresConfirmation()
+                ->modalHeading('Duplicate Package')
+                ->modalDescription('Are you sure you want to duplicate this package?')
+                ->modalSubmitActionLabel('Yes, Duplicate')
+                ->action(function ($record) {
+                    self::duplicatePackage($record);
+                }),
+            
+            // YAHAN SE NEEECHE SARE BUTTONS WAISE HI RAHENGE - KUCH MAT HATANA
+            Action::make('moveUp')
+                ->label('')
+                ->icon('heroicon-o-arrow-up')
+                ->color('success')
+                ->action(function ($record) {
+                    $currentOrder = $record->sort_order;
                     
-                ViewAction::make()->infolist([
-                    Section::make('Package Info')
-                        ->schema([
-                            Grid::make(3)
-                                ->schema([
-                                    TextEntry::make('sort_order')->label('Sort Order'),
-                                    TextEntry::make('title')->label('Package Title'),
-                                    TextEntry::make('slug')->label('Package Slug'),
-                                    
-                                    // MULTIPLE TRIPS IN INFOLIST
-                                    TextEntry::make('trips')
-                                        ->label('Associated Trips/Categories')
-                                        ->formatStateUsing(function ($record) {
-                                            $trips = $record->trips;
-                                            if ($trips->isEmpty()) {
-                                                return 'No trips assigned';
-                                            }
-                                            return $trips->pluck('heading')->implode(', ');
-                                        })
-                                        ->badge()
-                                        ->color('info'),
-                                    
-                                    TextEntry::make('duration')->label('Duration'),
-                                    TextEntry::make('starting_price')->label('Starting Price')->money('INR'),
-                                    TextEntry::make('pickup')->label('Pickup'),
-                                    TextEntry::make('drop')->label('Drop'),
-                                    TextEntry::make('age_group_min')->label('Min Age'),
-                                    TextEntry::make('age_group_max')->label('Max Age'),
-                                    IconEntry::make('is_active')->label('Active')->boolean(),
-                                    IconEntry::make('is_trending')->label('Trending')->boolean(),
-                                    ImageEntry::make('thumbnail')->label('Thumbnail'),
-                                    ImageEntry::make('banner')->label('Banner'),
-                                ]),
-                        ]),
-
-                    Section::make('Associated Trips Details')
-                        ->schema([
-                            RepeatableEntry::make('trips')
-                                ->label('Trips/Categories')
-                                ->schema([
-                                    Grid::make(2)
-                                        ->schema([
-                                            TextEntry::make('heading')->label('Trip Name'),
-                                            TextEntry::make('slug')->label('Trip Slug'),
-                                            TextEntry::make('pivot.status')->label('Mapping Status'),
-                                            TextEntry::make('pivot.mapping_date')->label('Mapping Date')->date(),
-                                            IconEntry::make('is_active')->label('Active')->boolean(),
-                                        ]),
-                                ])
-                                ->columnSpanFull(),
-                        ])
-                        ->visible(fn ($record) => $record->trips->isNotEmpty()),
-
-                    Section::make('Description')
-                        ->schema([
-                            TextEntry::make('description')->label('Description')->html()->columnSpanFull()
-                        ]),
-                    Section::make('Itinerary')
-                        ->schema([
-                            RepeatableEntry::make('itinerary')
-                                ->label('Itinerary')
-                                ->schema([
-                                    TextEntry::make('heading')->label('Heading'),
-                                    TextEntry::make('content')->label('Content')->html(),
-                                ])
-                        ]),
-                    Section::make('Inclusion')
-                        ->schema([
-                            TextEntry::make('inclusion')->label('Inclusion')->html()->columnSpanFull()
-                        ]),
-                    Section::make('Exclusion')
-                        ->schema([
-                            TextEntry::make('exclusion')->label('Exclusion')->html()->columnSpanFull()
-                        ]),
-                    Section::make('Note')
-                        ->schema([
-                            TextEntry::make('note')->label('Note')->html()->columnSpanFull()
-                        ]),
-                    Section::make('Things to Pack')
-                        ->schema([
-                            TextEntry::make('things_to_pack')->label('Things to Pack')->html()->columnSpanFull()
-                        ]),
-                    Section::make('Active Costs')
-                        ->schema([
-                            RepeatableEntry::make('activeCosts')
-                                ->label('Active Costs')
-                                ->schema([
-                                    Grid::make(6)
-                                        ->schema([
-                                            TextEntry::make('activity')
-                                                ->label('Activity')
-                                                ->columnSpan(1),
-
-                                            TextEntry::make('cost')
-                                                ->label('Cost')
-                                                ->money('INR', true)
-                                                ->columnSpan(1),
-
-                                            TextEntry::make('discount_percent')
-                                                ->label('Discount %')
-                                                ->columnSpan(1),
-
-                                            TextEntry::make('gst_percent')
-                                                ->label('GST %')
-                                                ->columnSpan(1),
-                                            TextEntry::make('final_cost_excl')
-                                                ->label('Cost (Excl. GST)')
-                                                ->state(fn($record) => round(
-                                                    ($record->cost - ($record->cost * $record->discount_percent / 100))
-                                                ))
-                                                ->money('INR', true)
-                                                ->columnSpan(1),
-
-                                            TextEntry::make('final_cost_incl')
-                                                ->label('Cost (Incl. GST)')
-                                                ->state(fn($record) => round(
-                                                    ($record->cost - ($record->cost * $record->discount_percent / 100)) *
-                                                        (1 + ($record->gst_percent / 100))
-                                                ))
-                                                ->money('INR', true)
-                                                ->columnSpan(1),
-                                        ]),
-                                ]),
-                        ]),
-
-                    Section::make('Package Dates')
-                        ->schema([
-                            RepeatableEntry::make('packageDates')
-                                ->label('Package Dates')
-                                ->schema([
-                                    Grid::make(4)
-                                        ->schema([
-                                            TextEntry::make('start_date')
-                                                ->label('Start')
-                                                ->date('d M Y')
-                                                ->columnSpan(1),
-
-                                            TextEntry::make('end_date')
-                                                ->label('End')
-                                                ->date('d M Y')
-                                                ->columnSpan(1),
-
-                                            TextEntry::make('status')
-                                                ->label('Status')
-                                                ->columnSpan(1),
-
-                                            TextEntry::make('starting_price')
-                                                ->label('Starting Price')
-                                                ->money('INR', true)
-                                                ->columnSpan(1),
-                                        ]),
-                                ]),
-                        ]),
-                ]),
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
-            ])
-            ->bulkActions([
-                Tables\Actions\DeleteBulkAction::make(),
-                Tables\Actions\BulkAction::make('reorder')
-                    ->label('Reorder by ID')
-                    ->action(function ($records) {
-                        $sortOrder = 0;
-                        foreach ($records as $record) {
-                            $record->update(['sort_order' => $sortOrder]);
-                            $sortOrder++;
-                        }
+                    $previousRecord = Packages::where('sort_order', '<', $currentOrder)
+                        ->orderBy('sort_order', 'desc')
+                        ->first();
+                    
+                    if ($previousRecord) {
+                        $tempOrder = $previousRecord->sort_order;
+                        $previousRecord->update(['sort_order' => $currentOrder]);
+                        $record->update(['sort_order' => $tempOrder]);
+                        
                         Notification::make()
-                            ->title('Reordered successfully')
+                            ->title('Moved up successfully')
                             ->success()
                             ->send();
-                    }),
-            ])
-            ->headerActions([
-                Action::make('resetSortOrder')
-                    ->label('Reset Sort Order')
-                    ->color('danger')
-                    ->action(function () {
-                        $packages = Packages::orderBy('id')->get();
-                        $sortOrder = 0;
-                        foreach ($packages as $package) {
-                            $package->update(['sort_order' => $sortOrder]);
-                            $sortOrder++;
-                        }
+                    } else {
                         Notification::make()
-                            ->title('Sort order reset successfully')
+                            ->title('Already at the top')
+                            ->warning()
+                            ->send();
+                    }
+                })
+                ->visible(fn ($record) => $record->sort_order > 0),
+            
+            Action::make('moveDown')
+                ->label('')
+                ->icon('heroicon-o-arrow-down')
+                ->color('warning')
+                ->action(function ($record) {
+                    $currentOrder = $record->sort_order;
+                    
+                    $nextRecord = Packages::where('sort_order', '>', $currentOrder)
+                        ->orderBy('sort_order', 'asc')
+                        ->first();
+                    
+                    if ($nextRecord) {
+                        $tempOrder = $nextRecord->sort_order;
+                        $nextRecord->update(['sort_order' => $currentOrder]);
+                        $record->update(['sort_order' => $tempOrder]);
+                        
+                        Notification::make()
+                            ->title('Moved down successfully')
                             ->success()
                             ->send();
-                    }),
-            ]);
+                    } else {
+                        Notification::make()
+                            ->title('Already at the bottom')
+                            ->warning()
+                            ->send();
+                    }
+                }),
+                
+            ViewAction::make()->infolist([
+                // ... TUMHARA PURANA INFOLIST
+                Section::make('Package Info')
+                    ->schema([
+                        Grid::make(3)
+                            ->schema([
+                                TextEntry::make('sort_order')->label('Sort Order'),
+                                TextEntry::make('title')->label('Package Title'),
+                                TextEntry::make('slug')->label('Package Slug'),
+                                
+                                TextEntry::make('trips')
+                                    ->label('Associated Trips/Categories')
+                                    ->formatStateUsing(function ($record) {
+                                        $trips = $record->trips;
+                                        if ($trips->isEmpty()) {
+                                            return 'No trips assigned';
+                                        }
+                                        return $trips->pluck('heading')->implode(', ');
+                                    })
+                                    ->badge()
+                                    ->color('info'),
+                                
+                                TextEntry::make('duration')->label('Duration'),
+                                TextEntry::make('starting_price')->label('Starting Price')->money('INR'),
+                                TextEntry::make('pickup')->label('Pickup'),
+                                TextEntry::make('drop')->label('Drop'),
+                                TextEntry::make('age_group_min')->label('Min Age'),
+                                TextEntry::make('age_group_max')->label('Max Age'),
+                                IconEntry::make('is_active')->label('Active')->boolean(),
+                                IconEntry::make('is_trending')->label('Trending')->boolean(),
+                                ImageEntry::make('thumbnail')->label('Thumbnail'),
+                                ImageEntry::make('banner')->label('Banner'),
+                            ]),
+                    ]),
+
+                Section::make('Associated Trips Details')
+                    ->schema([
+                        RepeatableEntry::make('trips')
+                            ->label('Trips/Categories')
+                            ->schema([
+                                Grid::make(2)
+                                    ->schema([
+                                        TextEntry::make('heading')->label('Trip Name'),
+                                        TextEntry::make('slug')->label('Trip Slug'),
+                                        TextEntry::make('pivot.status')->label('Mapping Status'),
+                                        TextEntry::make('pivot.mapping_date')->label('Mapping Date')->date(),
+                                        IconEntry::make('is_active')->label('Active')->boolean(),
+                                    ]),
+                            ])
+                            ->columnSpanFull(),
+                    ])
+                    ->visible(fn ($record) => $record->trips->isNotEmpty()),
+
+                Section::make('Description')
+                    ->schema([
+                        TextEntry::make('description')->label('Description')->html()->columnSpanFull()
+                    ]),
+                Section::make('Itinerary')
+                    ->schema([
+                        RepeatableEntry::make('itinerary')
+                            ->label('Itinerary')
+                            ->schema([
+                                TextEntry::make('heading')->label('Heading'),
+                                TextEntry::make('content')->label('Content')->html(),
+                            ])
+                    ]),
+                Section::make('Inclusion')
+                    ->schema([
+                        TextEntry::make('inclusion')->label('Inclusion')->html()->columnSpanFull()
+                    ]),
+                Section::make('Exclusion')
+                    ->schema([
+                        TextEntry::make('exclusion')->label('Exclusion')->html()->columnSpanFull()
+                    ]),
+                Section::make('Note')
+                    ->schema([
+                        TextEntry::make('note')->label('Note')->html()->columnSpanFull()
+                    ]),
+                Section::make('Things to Pack')
+                    ->schema([
+                        TextEntry::make('things_to_pack')->label('Things to Pack')->html()->columnSpanFull()
+                    ]),
+                Section::make('Active Costs')
+                    ->schema([
+                        RepeatableEntry::make('activeCosts')
+                            ->label('Active Costs')
+                            ->schema([
+                                Grid::make(6)
+                                    ->schema([
+                                        TextEntry::make('activity')->label('Activity')->columnSpan(1),
+                                        TextEntry::make('cost')->label('Cost')->money('INR', true)->columnSpan(1),
+                                        TextEntry::make('discount_percent')->label('Discount %')->columnSpan(1),
+                                        TextEntry::make('gst_percent')->label('GST %')->columnSpan(1),
+                                        TextEntry::make('final_cost_excl')
+                                            ->label('Cost (Excl. GST)')
+                                            ->state(fn($record) => round(
+                                                ($record->cost - ($record->cost * $record->discount_percent / 100))
+                                            ))
+                                            ->money('INR', true)
+                                            ->columnSpan(1),
+                                        TextEntry::make('final_cost_incl')
+                                            ->label('Cost (Incl. GST)')
+                                            ->state(fn($record) => round(
+                                                ($record->cost - ($record->cost * $record->discount_percent / 100)) *
+                                                    (1 + ($record->gst_percent / 100))
+                                            ))
+                                            ->money('INR', true)
+                                            ->columnSpan(1),
+                                    ]),
+                            ]),
+                    ]),
+
+                Section::make('Package Dates')
+                    ->schema([
+                        RepeatableEntry::make('packageDates')
+                            ->label('Package Dates')
+                            ->schema([
+                                Grid::make(4)
+                                    ->schema([
+                                        TextEntry::make('start_date')->label('Start')->date('d M Y')->columnSpan(1),
+                                        TextEntry::make('end_date')->label('End')->date('d M Y')->columnSpan(1),
+                                        TextEntry::make('status')->label('Status')->columnSpan(1),
+                                        TextEntry::make('starting_price')->label('Starting Price')->money('INR', true)->columnSpan(1),
+                                    ]),
+                            ]),
+                    ]),
+            ]),
+            Tables\Actions\EditAction::make(),
+            Tables\Actions\DeleteAction::make(),
+        ])
+        ->bulkActions([
+            // ... TUMHARE SARE BULK ACTIONS JAISE HAIN
+            Tables\Actions\DeleteBulkAction::make(),
+            Tables\Actions\BulkAction::make('reorder')
+                ->label('Reorder by ID')
+                ->action(function ($records) {
+                    $sortOrder = 0;
+                    foreach ($records as $record) {
+                        $record->update(['sort_order' => $sortOrder]);
+                        $sortOrder++;
+                    }
+                    Notification::make()
+                        ->title('Reordered successfully')
+                        ->success()
+                        ->send();
+                }),
+        ])
+        ->headerActions([
+            // ... TUMHARE SARE HEADER ACTIONS JAISE HAIN
+            Action::make('resetSortOrder')
+                ->label('Reset Sort Order')
+                ->color('danger')
+                ->action(function () {
+                    $packages = Packages::orderBy('id')->get();
+                    $sortOrder = 0;
+                    foreach ($packages as $package) {
+                        $package->update(['sort_order' => $sortOrder]);
+                        $sortOrder++;
+                    }
+                    Notification::make()
+                        ->title('Sort order reset successfully')
+                        ->success()
+                        ->send();
+                }),
+        ]);
+}
+
+  
+  
+  // ✅ PackagesResource class ke END mein ye function add karo (last curly brace se pehle)
+
+private static function duplicatePackage($originalPackage): void
+{
+    try {
+        DB::beginTransaction();
+        
+        // Duplicate main package
+        $newPackage = $originalPackage->replicate();
+        $newPackage->title = $originalPackage->title . ' (Copy)';
+        $newPackage->slug = $originalPackage->slug . '-copy-' . time();
+        $newPackage->package_code = $originalPackage->package_code . '-copy-' . time();
+        $newPackage->sort_order = Packages::max('sort_order') + 1;
+        $newPackage->created_at = now();
+        $newPackage->updated_at = now();
+        
+        // Copy thumbnail
+        if ($originalPackage->thumbnail) {
+            $newPackage->thumbnail = self::copyImageFile($originalPackage->thumbnail, 'package-thumbnail');
+        }
+        
+        // Copy banner
+        if ($originalPackage->banner) {
+            $newPackage->banner = self::copyImageFile($originalPackage->banner, 'package-banner');
+        }
+        
+        // Copy map_image
+        if ($originalPackage->map_image) {
+            $newPackage->map_image = self::copyImageFile($originalPackage->map_image, 'map_image');
+        }
+        
+        $newPackage->save();
+        
+        // Copy gallery
+        if ($originalPackage->gallery && is_array($originalPackage->gallery)) {
+            $newGallery = [];
+            foreach ($originalPackage->gallery as $galleryItem) {
+                $newImagePath = null;
+                if (!empty($galleryItem['image'])) {
+                    $newImagePath = self::copyImageFile($galleryItem['image'], 'package-gallery');
+                }
+                $newGallery[] = [
+                    'image' => $newImagePath,
+                    'alt_text' => ($galleryItem['alt_text'] ?? '') . ' (Copy)'
+                ];
+            }
+            $newPackage->gallery = $newGallery;
+            $newPackage->save();
+        }
+        
+        // Copy testimonials
+        if ($originalPackage->testimonials && is_array($originalPackage->testimonials)) {
+            $newTestimonials = [];
+            foreach ($originalPackage->testimonials as $testimonial) {
+                $newImagePath = null;
+                if (!empty($testimonial['image'])) {
+                    $newImagePath = self::copyImageFile($testimonial['image'], 'package-testimonials');
+                }
+                $newTestimonials[] = [
+                    'name' => ($testimonial['name'] ?? '') . ' (Copy)',
+                    'image' => $newImagePath,
+                    'social' => $testimonial['social'] ?? false,
+                    'star' => $testimonial['star'] ?? 5,
+                    'text' => $testimonial['text'] ?? '',
+                    'status' => $testimonial['status'] ?? true
+                ];
+            }
+            $newPackage->testimonials = $newTestimonials;
+            $newPackage->save();
+        }
+        
+        // Copy FAQs
+        if ($originalPackage->faqs && is_array($originalPackage->faqs)) {
+            $newFaqs = [];
+            foreach ($originalPackage->faqs as $faq) {
+                $newFaqs[] = [
+                    'question' => $faq['question'] ?? '',
+                    'answer' => $faq['answer'] ?? ''
+                ];
+            }
+            $newPackage->faqs = $newFaqs;
+            $newPackage->save();
+        }
+        
+        // Copy Itinerary
+        if ($originalPackage->itinerary && is_array($originalPackage->itinerary)) {
+            $newItinerary = [];
+            foreach ($originalPackage->itinerary as $item) {
+                $newItinerary[] = [
+                    'heading' => $item['heading'] ?? '',
+                    'content' => $item['content'] ?? ''
+                ];
+            }
+            $newPackage->itinerary = $newItinerary;
+            $newPackage->save();
+        }
+        
+        // Copy relationships (trips)
+        if ($originalPackage->trips) {
+            $newPackage->trips()->attach($originalPackage->trips->pluck('id')->toArray());
+        }
+        
+        // Copy active costs
+        if ($originalPackage->activeCosts) {
+            foreach ($originalPackage->activeCosts as $cost) {
+                $newPackage->activeCosts()->create([
+                    'activity' => $cost->activity,
+                    'cost' => $cost->cost,
+                    'discount_percent' => $cost->discount_percent,
+                    'gst_percent' => $cost->gst_percent,
+                ]);
+            }
+        }
+        
+        // Copy package dates
+        if ($originalPackage->packageDates) {
+            foreach ($originalPackage->packageDates as $date) {
+                $newPackage->packageDates()->create([
+                    'start_date' => $date->start_date,
+                    'end_date' => $date->end_date,
+                    'status' => 'inactive',
+                    'starting_price' => $date->starting_price,
+                ]);
+            }
+        }
+        
+        DB::commit();
+        
+        Notification::make()
+            ->success()
+            ->title('Package Duplicated Successfully!')
+            ->body("New package: {$newPackage->title}")
+            ->send();
+        
+        // Redirect to edit page
+        redirect()->route('filament.admin.resources.packages.edit', $newPackage);
+        
+    } catch (\Exception $e) {
+        DB::rollBack();
+        
+        Notification::make()
+            ->danger()
+            ->title('Duplication Failed!')
+            ->body($e->getMessage())
+            ->send();
+            
+        \Log::error('Package duplication failed', [
+            'original_id' => $originalPackage->id,
+            'error' => $e->getMessage()
+        ]);
     }
+}
 
+// ✅ Helper function to copy image files
+private static function copyImageFile($oldPath, $directory)
+{
+    if (!$oldPath || !Storage::disk('public')->exists($oldPath)) {
+        return null;
+    }
+    
+    $extension = pathinfo($oldPath, PATHINFO_EXTENSION);
+    $newFilename = 'copy_' . time() . '_' . uniqid() . '.' . $extension;
+    $newPath = $directory . '/' . $newFilename;
+    
+    Storage::disk('public')->copy($oldPath, $newPath);
+    
+    return $newPath;
+}
     public static function getRelations(): array
     {
         return [

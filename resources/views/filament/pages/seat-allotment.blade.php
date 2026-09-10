@@ -686,7 +686,7 @@
                                                 <div class="token-info">
                                                     @php
                                                         $token = $booking['booking_token'] ?? 'Not generated';
-                                                        $bookingLink = $token && $token != 'Not generated' ? 'https://enlive-trips.vercel.app/booking-detail?id=' . $token : '#';
+                                                        $bookingLink = $token && $token != 'Not generated' ? 'https://tripogramclub.com/booking-detail?id=' . $token : '#';
                                                     @endphp
                                                     @if($token && $token != 'Not generated')
                                                         <div style="display: flex; align-items: center; gap: 8px;">

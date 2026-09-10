@@ -20,7 +20,7 @@ use Illuminate\Support\Str;
 @endpush
 
 <div>
-    <div class="container mx-auto max-w-7xl">
+    <div class="container mx-auto max-w-12xl">
         @foreach($content as $row)
             <div class="grid mb-4 grid-cols-{{ count($row['columns']) }} grid-rows-1 {{ $row['customClasses'] ?? '' }}"
                 style="

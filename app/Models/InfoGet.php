@@ -24,7 +24,7 @@ class InfoGet extends Model
         'contact',
         'gender',
         'dob',
-
+		'priority',
         'id_proof_type',
         'id_proof_number',
 
@@ -34,7 +34,10 @@ class InfoGet extends Model
 
         'has_file'
     ];
-    
+   public function coupon()
+{
+    return $this->hasOne(CouponApplied::class, 'info_get_id');
+}
     public function booking()
 {
     return $this->belongsTo(Bookings::class, 'booking_id');

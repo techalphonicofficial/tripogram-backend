@@ -1,7 +1,5 @@
 <?php
-
 namespace App\Http\Controllers;
-
 use App\Models\ActiveCosts;
 use App\Models\Bookings;
 use App\Models\PackageDates;
@@ -20,6 +18,11 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use App\Models\InfoGet;
+use App\Models\Coupon;
+use App\Models\CouponApplied;
+use App\Models\PaymentLink;
+use Illuminate\Support\Facades\DB;
+
 class BookingController extends Controller
 {
     protected $razorpay_key;
@@ -31,36 +34,462 @@ class BookingController extends Controller
         $this->razorpay_key = $setting->razorpay_key_id;
         $this->razorpay_secret = $setting->razorpay_key_secret;
     }
-    
-    
-    
-// public function bookinginformationupdate(Request $request) 
+
+    public function sorryfeedback(Request $request)
+    {
+        $bookings = Bookings::with([
+            'members.coupon.coupon',
+            'package:id,title,slug,thumbnail,starting_price,duration,pickup,drop'
+        ])
+            ->where('cron_job', 1)
+            ->where('status', 'confirmed')
+            ->whereDate('end_date', '<', now())
+            ->select(
+                'id',
+                'booking_id',
+                'package_id',
+                'start_date',
+                'end_date',
+                'pickup',
+                'drop',
+                'cron_job'
+            )
+            ->get();
+
+        $successCount = 0;
+        $failCount = 0;
+        $skippedCount = 0;
+
+        foreach ($bookings as $booking) {
+
+            // duplicate contacts remove
+            $uniqueMembers = collect($booking->members)->unique('contact');
+
+            $bookingSuccess = false;
+
+            foreach ($uniqueMembers as $member) {
+
+                // contact missing
+                if (empty($member->contact)) {
+                    $skippedCount++;
+                    continue;
+                }
+
+                // ✅ member coupon check
+                if (
+                    empty($member->coupon) ||
+                    empty($member->coupon->coupon) ||
+                    empty($member->coupon->coupon_amount)
+                ) {
+                    $skippedCount++;
+                    continue;
+                }
+
+                // ✅ API tabhi call hogi
+                $result = $this->sendWhatsAppFeedback($booking, $member);
+
+                if ($result) {
+                    $successCount++;
+                    $bookingSuccess = true;
+                } else {
+                    $failCount++;
+                }
+
+                usleep(500000);
+            }
+
+            // processed mark
+            if ($bookingSuccess) {
+                $booking->update([
+                    'cron_job' => 2
+                ]);
+            }
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Template messages processed successfully',
+            'total_bookings' => count($bookings),
+            'success_count' => $successCount,
+            'fail_count' => $failCount,
+            'skipped_count' => $skippedCount,
+        ]);
+    }
+
+
+    private function sendWhatsAppFeedback($booking, $member)
+    {
+        try {
+
+            $data = [
+                "token" => "Hn8OQb2zZwDGvdhjwgHrChbit3QqQFyrjLPKkkto475bac3e",
+                "phone" => $member->contact,
+                "template_name" => "feedback_issue",
+                "template_language" => "EN_US",
+            ];
+
+            \Log::info('WhatsApp Payload', $data);
+
+            $ch = curl_init();
+
+            curl_setopt_array($ch, [
+                CURLOPT_URL => "https://api.sendinai.com/sender",
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => json_encode($data),
+                CURLOPT_HTTPHEADER => [
+                    'Content-Type: application/json'
+                ],
+                CURLOPT_TIMEOUT => 30,
+                CURLOPT_SSL_VERIFYPEER => false,
+            ]);
+
+            $response = curl_exec($ch);
+
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+            if (curl_errno($ch)) {
+
+                \Log::error("WhatsApp CURL Error", [
+                    'error' => curl_error($ch)
+                ]);
+
+                curl_close($ch);
+
+                return false;
+            }
+
+            curl_close($ch);
+
+            \Log::info("WhatsApp API Response", [
+                'http_code' => $httpCode,
+                'response' => $response
+            ]);
+
+            return in_array($httpCode, [200, 201]);
+
+        } catch (\Exception $e) {
+
+            \Log::error("WhatsApp Feedback Exception", [
+                'message' => $e->getMessage(),
+                'line' => $e->getLine(),
+            ]);
+
+            return false;
+        }
+    }
+    public function webhook(Request $request)
+    {
+        $body = $request->getContent();
+        $signature = $request->header('X-Razorpay-Signature');
+        $secret = config('services.razorpay.webhook_secret');
+
+        // 🔐 Verify signature
+        $generatedSignature = hash_hmac('sha256', $body, $secret);
+
+        if ($generatedSignature !== $signature) {
+            return response()->json(['error' => 'Invalid signature'], 400);
+        }
+
+        $payload = json_decode($body, true);
+        $event = $payload['event'] ?? null;
+
+        // ✅ Payment Link Data
+        $paymentLink = $payload['payload']['payment_link']['entity'] ?? null;
+
+        if ($event === 'payment_link.paid' && $paymentLink) {
+
+            $razorpayLinkId = $paymentLink['id']; // plink_xxx
+            $shortUrl = $paymentLink['short_url']; // https://rzp.io/...
+            $status = $paymentLink['status']; // paid
+
+            // 🔥 Update using razorpay_link_id (BEST)
+            DB::table('payment_links')
+                ->where('razorpay_link_id', $razorpayLinkId)
+                ->update([
+                    'status' => 'paid',
+                    'updated_at' => now()
+                ]);
+
+
+            DB::table('payment_links')
+                ->where('payment_link', $shortUrl)
+                ->update([
+                    'status' => 'paid',
+                    'updated_at' => now()
+                ]);
+
+        }
+
+        return response()->json(['status' => 'ok']);
+    }
+    public function applyCoupon(Request $request)
+    {
+
+
+        try {
+
+            $request->validate([
+
+                'coupon_code' => 'required|string'
+            ]);
+
+
+
+            $coupon = Coupon::where('code', $request->coupon_code)->first();
+
+            if (!$coupon) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid coupon code'
+                ], 404);
+            }
+
+
+            if ($coupon->is_used) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Coupon already used'
+                ], 400);
+            }
+
+
+            if ($coupon->expires_at && now()->gt($coupon->expires_at)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Coupon expired'
+                ], 400);
+            }
+
+
+            $discount = $coupon->discount_value;
+            return response()->json([
+                'success' => true,
+                'message' => 'Coupon applied successfully',
+                'discount' => $discount
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+
+    public function add_booking1(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'full_name' => 'required|string|max:255',
+            'email' => 'required|email|max:255',
+            'phone' => 'required|digits:10',
+            'start_date' => 'required|date',
+            'end_date' => 'nullable|date|after_or_equal:start_date',
+            'active_cost' => 'nullable|array',
+            'payment_type' => 'required|in:half,full',
+            'final_amount' => 'required|numeric|min:0',
+            'package_id' => 'required|exists:packages,id',
+            'payable_type' => 'nullable',
+            'applied_coupons' => 'nullable|array',
+            'applied_coupons.*' => 'string',
+            'total_coupon_discount' => 'nullable|numeric|min:0',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $status = 'pending';
+
+        // ===========================
+        // COUPON
+        // ===========================
+        $appliedCoupons = $request->input('applied_coupons', []);
+        if (is_string($appliedCoupons)) {
+            $appliedCoupons = json_decode($appliedCoupons, true);
+        }
+        if (!is_array($appliedCoupons)) {
+            $appliedCoupons = [];
+        }
+
+        $totalCouponDiscount = $request->input('total_coupon_discount', 0);
+
+        $validCoupons = [];
+        if (!empty($appliedCoupons)) {
+            $validCoupons = Coupon::whereIn('code', $appliedCoupons)
+                ->where(function ($q) {
+                    $q->whereNull('expires_at')
+                        ->orWhere('expires_at', '>=', now());
+                })
+                ->where('is_used', 0)
+                ->pluck('code')
+                ->toArray();
+        }
+
+        $package = Packages::with('destination')->find($request->input('package_id'));
+
+        if (!$package) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Package not found'
+            ], 404);
+        }
+
+        // ===========================
+        // BOOKING ID GENERATION
+        // ===========================
+        $stateCode = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', optional($package->destination)->state_code ?? 'XX'));
+        $packageCode = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $package->package_code ?? 'PKG'));
+
+        $dateCode = Carbon::now()->format('my');
+        $prefix = "ETIN{$stateCode}{$packageCode}-{$dateCode}";
+
+        DB::beginTransaction();
+
+        try {
+
+            $currentMonth = now()->month;
+            $currentYear = now()->year;
+
+            $sequence = DB::table('booking_sequences')
+                ->whereMonth('created_at', $currentMonth)
+                ->whereYear('created_at', $currentYear)
+                ->first();
+
+            if ($sequence) {
+                $last_number = $sequence->last_number + 1;
+
+                DB::table('booking_sequences')
+                    ->where('id', $sequence->id)
+                    ->update(['last_number' => $last_number]);
+            } else {
+                $last_number = 1;
+
+                DB::table('booking_sequences')->insert([
+                    'last_number' => $last_number,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            $serial = str_pad($last_number, 3, '0', STR_PAD_LEFT);
+            $bookingId = $prefix . $serial;
+
+            // ===========================
+            // ACTIVE COST
+            // ===========================
+            $activeCostArray = $request->active_cost;
+
+            if (is_string($activeCostArray)) {
+                $activeCostArray = json_decode($activeCostArray, true);
+            }
+
+            $activeCostText = 'No activities selected';
+
+            if (is_array($activeCostArray) && !empty($activeCostArray)) {
+                $items = [];
+
+                foreach ($activeCostArray as $item) {
+                    $activityName = $item['activity'] ?? 'Activity';
+                    $cost = (float) ($item['cost'] ?? 0);
+                    $quantity = (float) ($item['quantity'] ?? 1);
+                    $totalWithDiscount = (float) ($item['total_with_discount'] ?? 0);
+
+                    $items[] = "{$activityName}: ₹" . number_format($cost, 2) .
+                        " × {$quantity} = ₹" . number_format($totalWithDiscount, 2);
+                }
+
+                $activeCostText = implode(' | ', $items);
+            }
+
+            // ===========================
+            // CREATE BOOKING
+            // ===========================
+
+            //
+            $booking = Bookings::create([
+                'booking_token' => Str::uuid(),
+                'full_name' => $request->full_name,
+                'email' => $request->email,
+                'phone' => $request->phone,
+                'package_id' => $package->id,
+
+                'booking_id' => $bookingId,
+                'package_title' => $package->title,
+                'duration' => $package->duration,
+                'pickup' => $package->pickup,
+                'drop' => $package->drop,
+
+                'source' => 'website',
+                'start_date' => $request->start_date,
+                'end_date' => $request->end_date,
+                'active_cost' => $request->active_cost,
+
+                // 🔥 PAYMENT (PENDING)
+                'payment_id' => null,
+                'order_id' => null,
+                'payment_mode' => 'online',
+                'payment_type' => $request->payment_type,
+
+                'final_amount' => $request->final_amount,
+                'paid_amount' => 0,
+                'due_amount' => $request->final_amount,
+
+                'status' => 'pending',
+                'payment_status' => 'pending',
+
+                'applied_coupons' => $validCoupons,
+                'total_coupon_discount' => $totalCouponDiscount,
+
+                'payment_history' => [],
+            ]);
+
+            DB::commit();
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
+
+        // ❌ Coupon abhi use mark mat karo (payment ke baad karna)
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Booking created successfully',
+            'booking_id' => $bookingId,
+            'booking_token' => $booking->booking_token
+        ]);
+    }
+    // public function bookinginformationupdate(Request $request) 
 // {
 //     // booking_id booking_info ke andar hai
 //     $bookingId = data_get($request->all(), 'booking_info.booking_id');
 
-//     $booking = Bookings::find($bookingId);
+    //     $booking = Bookings::find($bookingId);
 
-//     if (!$booking) {
+    //     if (!$booking) {
 //         return response()->json([
 //             'success' => false,
 //             'message' => 'Booking not found'
 //         ], 404);
 //     }
 
-//     // sharing_details ko save karna hai
+    //     // sharing_details ko save karna hai
 //     $sharingDetails = data_get($request->all(), 'sharing_details');
 
-//     // Yaha galti thi -> $booking->data_get ❌
+    //     // Yaha galti thi -> $booking->data_get ❌
 //     // Sahi field name lagao (example: sharing_details)
 //     $booking->data_get = $sharingDetails;
 
-//     // ✅ booking_token ko null kar diya
+    //     // ✅ booking_token ko null kar diya
 //     $booking->booking_token = null;
 
-//     $booking->save();
+    //     $booking->save();
 
-//     return response()->json([
+    //     return response()->json([
 //         'success' => true,
 //         'message' => 'Booking information updated successfully',
 //         'data' => $booking
@@ -68,86 +497,117 @@ class BookingController extends Controller
 // }
 
 
-public function bookinginformationupdate(Request $request)
-{
-    $bookingId = data_get($request->all(), 'booking_info.booking_id');
+    private function generateUniqueCoupon()
+    {
+        do {
+            // Example: ETRIP-AB12X9
+            $code = 'ETRIP-' . strtoupper(Str::random(6));
+        } while (Coupon::where('code', $code)->exists());
 
-    $booking = Bookings::find($bookingId);
-
-    if (!$booking) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Booking not found'
-        ], 404);
+        return $code;
     }
 
-    $sharingDetails = data_get($request->all(), 'sharing_details');
+    public function bookinginformationupdate(Request $request)
+    {
+        $bookingId = data_get($request->all(), 'booking_info.booking_id');
 
-    if ($sharingDetails) {
+        $booking = Bookings::find($bookingId);
 
-        foreach ($sharingDetails as $sharingType => $details) {
+        if (!$booking) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Booking not found'
+            ], 404);
+        }
 
-            if (isset($details['members'])) {
+        // ✅ Get package details for coupon amount
+        $package = Packages::find($booking->package_id);
+        $couponAmount = $package->coupon_amount ?? 500; // Use package's coupon amount or default 500
 
-                foreach ($details['members'] as $member) {
+        $sharingDetails = data_get($request->all(), 'sharing_details');
 
-                    InfoGet::create([
-                        'package_id' => $booking->package_id,
-                        'booking_id' => $booking->id,
-                        'start_date' => $booking->start_date,
+        if ($sharingDetails) {
 
-                        'sharing_type' => $sharingType,
-                        'member_number' => $member['member_number'] ?? null,
+            foreach ($sharingDetails as $sharingType => $details) {
 
-                        'name' => $member['name'] ?? null,
-                        'email' => $member['email'] ?? null,
-                        'contact' => $member['contact'] ?? null,
-                        'gender' => $member['gender'] ?? null,
-                        'dob' => $member['dob'] ?? null,
+                if (isset($details['members'])) {
 
-                        'id_proof_type' => $member['id_proof_type'] ?? null,
-                        'id_proof_number' => $member['id_proof_number'] ?? null,
+                    foreach ($details['members'] as $member) {
 
-                        'emergency_name' => $member['emergency_name'] ?? null,
-                        'emergency_contact' => $member['emergency_contact'] ?? null,
-                        'emergency_relation' => $member['emergency_relation'] ?? null,
+                        $person = InfoGet::create([
+                            'package_id' => $booking->package_id,
+                            'booking_id' => $booking->id,
+                            'start_date' => $booking->start_date,
 
-                        'has_file' => $member['has_file'] ?? false
-                    ]);
+                            'sharing_type' => $sharingType,
+                            'member_number' => $member['member_number'] ?? null,
+
+                            'name' => $member['name'] ?? null,
+                            'email' => $member['email'] ?? null,
+                            'contact' => $member['contact'] ?? null,
+                            'gender' => $member['gender'] ?? null,
+                            'dob' => $member['dob'] ?? null,
+
+                            'id_proof_type' => $member['id_proof_type'] ?? null,
+                            'id_proof_number' => $member['id_proof_number'] ?? null,
+
+                            'emergency_name' => $member['emergency_name'] ?? null,
+                            'emergency_contact' => $member['emergency_contact'] ?? null,
+                            'emergency_relation' => $member['emergency_relation'] ?? null,
+
+                            'has_file' => $member['has_file'] ?? false
+                        ]);
+
+                        $coupon = Coupon::create([
+                            'code' => $this->generateUniqueCoupon(),
+                            'discount_type' => 'fixed', // ya percentage
+                            'discount_value' => $couponAmount, // ✅ Dynamic from package
+                            'is_used' => false,
+                            'expires_at' => now()->addDays(7)
+                        ]);
+
+                        CouponApplied::create([
+                            'info_get_id' => $person->id,
+                            'coupon_id' => $coupon->id,
+                            'coupon_amount' => $coupon->discount_value,
+                            'status' => 'unused'
+                        ]);
+                    }
                 }
             }
         }
-    }
 
-    // booking table me json bhi save kar diya
-    $booking->data_get = $sharingDetails;
+        // booking table me json bhi save kar diya
+        $booking->data_get = $sharingDetails;
 
-    // token null
-    $booking->booking_token = null;
+        // token null
+        $booking->booking_token = null;
 
-   $datasss =  $booking->save();
-    return $datasss;
-    return response()->json([
-        'success' => true,
-        'message' => 'Booking information updated successfully'
-    ]);
-}
- public function get_booking(Request $request)
-{
-    $booking = Bookings::where('booking_token',$request->id)->first();
+        $booking->save(); // ✅ Remove $datasss variable
 
-    if (!$booking) {
         return response()->json([
-            'success' => false,
-            'message' => 'Booking not found'
-        ], 404);
+            'success' => true,
+            'message' => 'Booking information updated successfully',
+            'coupon_amount_applied' => $couponAmount // ✅ Optional: return coupon amount
+        ]);
     }
 
-    return response()->json([
-        'success' => true,
-        'data' => $booking
-    ]);
-}
+    public function get_booking(Request $request)
+    {
+        $booking = Bookings::where('booking_token', $request->id)->first();
+
+        if (!$booking) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Booking not found'
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $booking
+        ]);
+    }
 
     public function verifyPayment($razorpayPaymentId)
     {
@@ -187,187 +647,321 @@ public function bookinginformationupdate(Request $request)
             ];
         }
     }
-public function add_booking(Request $request)
-{
-    $validator = Validator::make($request->all(), [
-        'full_name'   => 'required|string|max:255',
-        'email'       => 'required|email|max:255',
-        'phone'       => 'required|digits:10',
-        'start_date'  => 'required|date',
-        'end_date'    => 'nullable|date|after_or_equal:start_date',
-        'active_cost' => 'nullable|array',
-        'payment_type' => 'required|in:half,full',
-        'final_amount' => 'required|numeric|min:0',
-        'paid_amount'  => 'required|numeric|min:0',
-        'razorpay_payment_id' => 'required|string',
-        'package_id' => 'required|exists:packages,id'
-    ]);
 
-    if ($validator->fails()) {
-        return response()->json([
-            'success' => false,
-            'errors'  => $validator->errors()
-        ], 422);
-    }
+    public function paymentlink($requestData, $booking)
+    {
+        $amount = $booking->due_amount;
 
-    $status = 'confirmed';
-
-    if (!$request->razorpay_payment_id) {
-        $status = 'cancelled';
-    } else {
-        $paymentResult = $this->verifyPayment($request->razorpay_payment_id);
-
-        if ($paymentResult['status'] !== 'success') {
-            $status = 'cancelled';
+        if ($amount <= 0) {
+            return null;
         }
-    }
 
-    $package = Packages::with('destination')->find($request->input('package_id'));
+        $response = Http::withBasicAuth(env('RAZORPAY_KEY'), env('RAZORPAY_SECRET'))
+            ->post('https://api.razorpay.com/v1/payment_links', [
+                "amount" => $amount * 100,
+                "currency" => "INR",
+                "description" => "Due Payment for Booking ID: " . $booking->booking_id,
+                "customer" => [
+                    "name" => $booking->full_name,
+                    "email" => $booking->email,
+                    "contact" => $booking->phone
+                ],
+                "notes" => [
+                    "booking_id" => $booking->booking_id
+                ],
+                "notify" => [
+                    "sms" => false,
+                    "email" => false
+                ]
+            ]);
 
-    if (!$package) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Package not found'
-        ], 404);
-    }
+        if ($response->successful()) {
 
-    $pickup = strtoupper(substr($package->pickup, 0, 2));
+            $data = $response->json();
 
-    $titleWords = explode(' ', $package->title);
-    $titleInitials = '';
+            $startDate = Carbon::parse($booking->start_date);
 
-    foreach ($titleWords as $word) {
-        if (!empty($word)) {
-            $titleInitials .= strtoupper(substr($word, 0, 1));
+            // ✅ correct package fetch
+            $findpackage = Packages::where('id', $booking->package_id)->first();
+
+            $days = $findpackage->day ?? 0;
+
+            // ✅ safe calculation
+            $expireDate = $startDate->copy()->subDays($days);
+
+            PaymentLink::create([
+                'booking_id' => $booking->id,
+                'razorpay_link_id' => $data['id'],
+                'payment_link' => $data['short_url'],
+                'amount' => $amount,
+                'expire_at' => $expireDate->format('Y-m-d'), // ✅ fix
+                'status' => 'pending',
+            ]);
+
+            return $data['short_url'];
         }
+
+        return null;
     }
+    public function add_booking(Request $request)
+    {
 
-    $titleInitials = substr($titleInitials, 0, 3);
-    $dateCode = now()->format('my');
-    $prefix = "ETIN{$pickup}{$titleInitials}-{$dateCode}";
-
-    $lastBooking = Bookings::where('booking_id', 'like', $prefix . '%')
-                    ->orderBy('id', 'desc')
-                    ->first();
-
-    if ($lastBooking) {
-        $lastNumber = intval(substr($lastBooking->booking_id, -3));
-        $serial = str_pad($lastNumber + 1, 3, '0', STR_PAD_LEFT);
-    } else {
-        $serial = '001';
-    }
-
-    $bookingId = $prefix . $serial;
-
-    // SAFE ACTIVE COST HANDLING
-    $activeCostArray = $request->active_cost;
-    
-    if (is_string($activeCostArray)) {
-        $activeCostArray = json_decode($activeCostArray, true);
-    }
-
-    $gstTotal = 0;
-    $subtotalWithoutGST = 0;
-    $activeCostText = 'No activities selected';
-
-    if (is_array($activeCostArray) && !empty($activeCostArray)) {
-        $items = [];
-        
-        foreach ($activeCostArray as $item) {
-            $activityName = $item['activity'] ?? 'Activity';
-            $cost = (float)($item['cost'] ?? 0);
-            $quantity = (float)($item['quantity'] ?? 1);
-            
-            $totalWithDiscount = (float)($item['total_with_discount'] ?? 0);
-            $totalWithGST = (float)($item['total_with_discount_and_gst'] ?? $totalWithDiscount);
-            
-            $gstAmount = $totalWithGST - $totalWithDiscount;
-            
-            $gstTotal += $gstAmount;
-            $subtotalWithoutGST += $totalWithDiscount;
-            
-            $items[] = "{$activityName}: ₹" . number_format($cost, 2) .
-                " × {$quantity} = ₹" . number_format($totalWithDiscount, 2);
-        }
-        
-        $activeCostText = implode(' | ', $items);
-    }
-
-    // SAFE DATE HANDLING
-    $startDate = 'Date not set';
-    if ($request->input('start_date')) {
-        try {
-            $startDate = Carbon::parse($request->input('start_date'))
-                ->timezone('Asia/Kolkata')
-                ->format('d M Y');
-        } catch (\Exception $e) {
-            $startDate = 'Date not set';
-        }
-    }
-
-    $booking = Bookings::create([
-        'booking_token' => Str::uuid(),
-        'full_name'  => $request->input('full_name'),
-        'email'      => $request->input('email'),
-        'phone'      => $request->input('phone'),
-        'package_id'    => $package->id,
-        'booking_id'    => $bookingId,
-        'package_title' => $package->title,
-        'duration'      => $package->duration,
-        'pickup'        => $package->pickup,
-        'drop'          => $package->drop,
-        'start_date' => $request->input('start_date'),
-        'end_date'    => $request->input('end_date'),
-        'active_cost'     => $request->active_cost,
-        'payment_id' => $request->input('razorpay_payment_id'),
-        'payment_mode' => 'online',
-        'payment_type' => $request->input('payment_type'),
-        'final_amount' => $request->input('final_amount'),
-        'paid_amount'  => $request->input('paid_amount'),
-        'due_amount'   => $request->input('final_amount') - $request->input('paid_amount'),
-        'status' => $status,
-        'payment_history' => [[
-            'amount' => $request->input('paid_amount'),
-            'pay_method' => 'Razorpay',
-            'pay_type' => 'Advance Payment',
-            'date' => now()->format('Y-m-d'),
-            'time' => now()->format('H:i:s')
-        ]]
-    ]);
-
-    Mail::to($booking->email)->send(
-        new BookingConfirmedMail($booking, $package->destination, $package->itinerary_pdf)
-    );
-
-    try {
-        Http::post('https://api.sendinai.com/sender', [
-            "token" => "Hn8OQb2zZwDGvdhjwgHrChbit3QqQFyrjLPKkkto475bac3e",
-            "phone" => $booking->phone ?? '7017026233',
-            "template_name" => "booking_confirmation_enlivetrips",
-            "template_language" => "EN_US",
-            "text1" => $booking->full_name ?? 'User',
-            "text2" => "https://www.enlivetrips.com/booking-detail?id=" . ($booking->booking_token ?? ''),
-            "text3" => $booking->booking_id ?? 'N/A',
-            "text4" => $package->title ?? 'Package',
-            "text5" => $startDate,  // ✅ FIXED - removed invalid 28-08-2003
-            "text6" => $activeCostText,
-            "text7" => "Subtotal: ₹" . number_format($subtotalWithoutGST, 2) .
-                " | Total GST: ₹" . number_format($gstTotal, 2) .
-                " (5%) | Grand Total: ₹" . number_format($booking->final_amount ?? 0, 2),
-            "text8" => number_format($booking->paid_amount ?? 0, 2),
-            "text9" => number_format($booking->due_amount ?? 0, 2),
-            "text10" => "https://www.enlivetrips.com/terms"
+        $validator = Validator::make($request->all(), [
+            'full_name' => 'required|string|max:255',
+            'email' => 'required|email|max:255',
+            'phone' => 'required|digits:10',
+            'start_date' => 'required|date',
+            'end_date' => 'nullable|date|after_or_equal:start_date',
+            'active_cost' => 'nullable|array',
+            'payment_type' => 'required|in:half,full',
+            'final_amount' => 'required|numeric|min:0',
+            'paid_amount' => 'required|numeric|min:0',
+            'razorpay_payment_id' => 'required|string',
+            'package_id' => 'required|exists:packages,id',
+            'payable_type' => 'nullable',
+            'applied_coupons' => 'nullable|array',
+            'applied_coupons.*' => 'string',
+            'total_coupon_discount' => 'nullable|numeric|min:0',
         ]);
-    } catch (\Exception $e) {
-        Log::error('WhatsApp API Failed: ' . $e->getMessage());
-    }
 
-    return response()->json([
-        'success' => true,
-        'message' => 'Booking created successfully',
-        'booking_id' => $bookingId
-    ]);
-}
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $status = 'confirmed';
+
+        if (!$request->razorpay_payment_id) {
+            $status = 'cancelled';
+        } else {
+            $paymentResult = $this->verifyPayment($request->razorpay_payment_id);
+            if ($paymentResult['status'] !== 'success') {
+                $status = 'cancelled';
+            }
+        }
+
+        // COUPON
+        $appliedCoupons = $request->input('applied_coupons', []);
+        if (is_string($appliedCoupons)) {
+            $appliedCoupons = json_decode($appliedCoupons, true);
+        }
+        if (!is_array($appliedCoupons)) {
+            $appliedCoupons = [];
+        }
+
+        $totalCouponDiscount = $request->input('total_coupon_discount', 0);
+
+        $validCoupons = [];
+        if (!empty($appliedCoupons)) {
+            $validCoupons = Coupon::whereIn('code', $appliedCoupons)
+                ->where(function ($q) {
+                    $q->whereNull('expires_at')
+                        ->orWhere('expires_at', '>=', now());
+                })
+                ->where('is_used', 0)
+                ->pluck('code')
+                ->toArray();
+        }
+
+        $package = Packages::with('destination')->find($request->input('package_id'));
+
+        if (!$package) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Package not found'
+            ], 404);
+        }
+
+        // ===========================
+        // 🔥 SAFE BOOKING ID GENERATION
+        // ===========================
+        $stateCode = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', optional($package->destination)->state_code ?? 'XX'));
+        $packageCode = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $package->package_code ?? 'PKG'));
+
+        $dateCode = Carbon::now()->format('my'); // 0426, 0526
+        $prefix = "ETIN{$stateCode}{$packageCode}-{$dateCode}";
+
+        DB::beginTransaction();
+
+        try {
+
+            $currentMonth = now()->month;
+            $currentYear = now()->year;
+
+            // ❌ where('created_at', Now()) galat tha → fix
+            $sequence = DB::table('booking_sequences')
+                ->whereMonth('created_at', $currentMonth)
+                ->whereYear('created_at', $currentYear)
+                ->first();
+
+            if ($sequence) {
+
+                $last_number = $sequence->last_number + 1;
+
+                // ❌ Update::table → fix
+                DB::table('booking_sequences')
+                    ->where('id', $sequence->id)
+                    ->update(['last_number' => $last_number]);
+
+            } else {
+
+                // ✅ new month → insert
+                $last_number = 1;
+
+                DB::table('booking_sequences')->insert([
+                    'last_number' => $last_number,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            // ✅ 3 digit format (001, 010, 100)
+            $serial = str_pad($last_number, 3, '0', STR_PAD_LEFT);
+
+            // tumhara existing prefix
+            $bookingId = $prefix . $serial;
+
+            // ===========================
+            // ACTIVE COST
+            // ===========================
+            $activeCostArray = $request->active_cost;
+
+            if (is_string($activeCostArray)) {
+                $activeCostArray = json_decode($activeCostArray, true);
+            }
+
+            $gstTotal = 0;
+            $subtotalWithoutGST = 0;
+            $activeCostText = 'No activities selected';
+
+            if (is_array($activeCostArray) && !empty($activeCostArray)) {
+                $items = [];
+
+                foreach ($activeCostArray as $item) {
+                    $activityName = $item['activity'] ?? 'Activity';
+                    $cost = (float) ($item['cost'] ?? 0);
+                    $quantity = (float) ($item['quantity'] ?? 1);
+
+                    $totalWithDiscount = (float) ($item['total_with_discount'] ?? 0);
+                    $totalWithGST = (float) ($item['total_with_discount_and_gst'] ?? $totalWithDiscount);
+
+                    $gstAmount = $totalWithGST - $totalWithDiscount;
+
+                    $gstTotal += $gstAmount;
+                    $subtotalWithoutGST += $totalWithDiscount;
+
+                    $items[] = "{$activityName}: ₹" . number_format($cost, 2) .
+                        " × {$quantity} = ₹" . number_format($totalWithDiscount, 2);
+                }
+
+                $activeCostText = implode(' | ', $items);
+            }
+
+            // DATE
+            $startDate = 'Date not set';
+            if ($request->input('start_date')) {
+                try {
+                    $startDate = Carbon::parse($request->input('start_date'))
+                        ->timezone('Asia/Kolkata')
+                        ->format('d M Y');
+                } catch (\Exception $e) {
+                    $startDate = 'Date not set';
+                }
+            }
+
+            // ===========================
+            // CREATE BOOKING
+            // ===========================
+            $booking = Bookings::create([
+                'booking_token' => Str::uuid(),
+                'full_name' => $request->input('full_name'),
+                'email' => $request->input('email'),
+                'phone' => $request->input('phone'),
+                'package_id' => $package->id,
+                'booking_id' => $bookingId,
+                'package_title' => $package->title,
+                'duration' => $package->duration,
+                'pickup' => $package->pickup,
+                'drop' => $package->drop,
+                'source' => 'website',
+                'start_date' => $request->input('start_date'),
+                'end_date' => $request->input('end_date'),
+                'active_cost' => $request->active_cost,
+                'payment_id' => $request->input('razorpay_payment_id'),
+                'payment_mode' => 'online',
+                'source' => 'website',
+                'payment_type' => $request->input('payment_type'),
+
+                'applied_coupons' => $validCoupons,
+                'total_coupon_discount' => $totalCouponDiscount,
+
+                'final_amount' => $request->input('final_amount'),
+                'paid_amount' => $request->input('paid_amount'),
+                'due_amount' => $request->input('final_amount') - $request->input('paid_amount'),
+                'status' => $status,
+                'payment_history' => [
+                    [
+                        'amount' => $request->input('paid_amount'),
+                        'pay_method' => 'Razorpay',
+                        'pay_type' => 'Advance Payment',
+                        'date' => now()->format('Y-m-d'),
+                        'time' => now()->format('H:i:s')
+                    ]
+                ]
+            ]);
+
+            DB::commit();
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
+
+        if (strtolower($request->payable_type) == 'half') {
+            $this->paymentlink($request->all(), $booking);
+        }
+
+        if (!empty($validCoupons)) {
+            Coupon::whereIn('code', $validCoupons)
+                ->update(['is_used' => 1]);
+        }
+
+        Mail::to($booking->email)->send(
+            new BookingConfirmedMail($booking, $package->destination, $package->itinerary_pdf)
+        );
+
+        $bookingsssss = $booking->created_at->format('d.m.Y');
+
+        $booking_dataas = $booking->booking_id . ', booking_date:' . $bookingsssss;
+        try {
+            Http::post('https://api.sendinai.com/sender', [
+                "token" => "Hn8OQb2zZwDGvdhjwgHrChbit3QqQFyrjLPKkkto475bac3e",
+                "phone" => $booking->phone ?? '',
+                "template_name" => "booking_confirmation_enlivetrips",
+                "template_language" => "EN_US",
+                "text1" => $booking->full_name,
+                "text2" => "https://www.enlivetrips.com/booking-detail?id=" . $booking->booking_token,
+                "text3" => $booking_dataas,
+                "text4" => $package->title,
+                "text5" => $startDate,
+                "text6" => $activeCostText,
+                "text7" => "Total: ₹" . number_format($booking->final_amount, 2),
+                "text8" => number_format($booking->paid_amount, 2),
+                "text9" => number_format($booking->due_amount, 2),
+                "text10" => "https://www.enlivetrips.com/terms-condition"
+            ]);
+        } catch (\Exception $e) {
+            Log::error('WhatsApp API Failed: ' . $e->getMessage());
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Booking created successfully',
+            'booking_id' => $bookingId
+        ]);
+    }
     public function send_email($email)
     {
 
@@ -380,25 +974,69 @@ public function add_booking(Request $request)
             'message' => 'Mail send to ' . $email
         ]);
     }
+
     public function popup_enquiry(Request $request)
     {
         $validated = $request->validate([
-            'fname'   => 'required|string|max:255',
-            'lname'   => 'required|string|max:255',
+            'fname' => 'nullable|string|max:255',
+            'lname' => 'nullable|string|max:255',
             'contact' => 'required|string|max:20',
-            'email'   => 'nullable|email|max:255',
+            'email' => 'nullable|email|max:255',
             'message' => 'nullable|string|max:500',
         ]);
 
         // ✅ Store in DB
         $popupForm = PopupForms::create($validated);
         event(new \App\Events\PopupFormCreated($popupForm));
+
+        // 🔥 PRIVYR WEBHOOK CALL
+        // $payload = [
+        //     'name' => $validated['fname'],
+        //     'lead_source' => 'www.enlivetrips.com',
+        //     'email' => $validated['email'] ?? '',
+        //     'phone' => $validated['contact'],
+        //     'other_fields' => [
+        //         'Message' => $validated['message'] ?? ''
+        //     ]
+        // ];
+
+        // try {
+        //     $ch = curl_init();
+
+        //     curl_setopt_array($ch, [
+        //         CURLOPT_URL => 'https://www.privyr.com/integrations/api/v1/incoming-webhook',
+        //         CURLOPT_RETURNTRANSFER => true,
+        //         CURLOPT_POST => true,
+        //         CURLOPT_POSTFIELDS => json_encode($payload),
+        //         CURLOPT_HTTPHEADER => [
+        //             'X-TOKEN: Sl0tLliY',
+        //             'Content-Type: application/json'
+        //         ],
+        //         CURLOPT_TIMEOUT => 10,
+        //     ]);
+
+        //     $response = curl_exec($ch);
+        //     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        //     curl_close($ch);
+
+        //     // Optional: Log Privyr response
+        //     \Log::info('Privyr webhook response', [
+        //         'http_code' => $httpCode,
+        //         'response' => $response
+        //     ]);
+
+        // } catch (\Exception $e) {
+        //     \Log::error('Privyr webhook failed: ' . $e->getMessage());
+        // }
+
         // ✅ Return JSON response
         return response()->json([
-            'status'  => true,
+            'success' => true,
             'message' => 'Enquiry submitted successfully.'
-        ], 201);
+        ], 200);
     }
+
+
     public function send_newsletter(Request $request)
     {
         $validated = $request->validate([
@@ -408,7 +1046,7 @@ public function add_booking(Request $request)
         $newsletter = Newsletters::create($validated);
 
         return response()->json([
-            'status'  => true,
+            'status' => true,
             'message' => 'Newsletter submitted successfully.'
         ], 201);
     }

@@ -8,9 +8,9 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Mail\Mailables\Address;
 
 class BookingConfirmedMail extends Mailable implements ShouldQueue
-
 {
     use Queueable, SerializesModels;
 
@@ -34,7 +34,11 @@ class BookingConfirmedMail extends Mailable implements ShouldQueue
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'EnliveTrips Booking Confirmation - #' .$this->booking->booking_token,
+            from: new Address(
+                'booking@enlivetrips.com',
+                'tripogramclub '
+            ),
+            subject: 'tripogramclub Booking Confirmation - #' . $this->booking->booking_token,
         );
     }
 
@@ -52,21 +56,21 @@ class BookingConfirmedMail extends Mailable implements ShouldQueue
     //         ],
     //     );
     // }
-public function content(): Content
-{
-    $url = 'https://www.enlivetrips.com/booking-detail?id=' . $this->booking->booking_token;
+    public function content(): Content
+    {
+        $url = 'https://tripogramclub.com/booking-detail?id=' . $this->booking->booking_token;
 
 
-    return new Content(
-        view: 'email.booking-confirmed',
-        with: [
-            'booking' => $this->booking,
-            'other' => $this->other,
-            'itinerary_pdf' => $this->itinerary_pdf,
-            'extra_url' => $url,
-        ],
-    );
-}
+        return new Content(
+            view: 'email.booking-confirmed',
+            with: [
+                'booking' => $this->booking,
+                'other' => $this->other,
+                'itinerary_pdf' => $this->itinerary_pdf,
+                'extra_url' => $url,
+            ],
+        );
+    }
 
     public function attachments(): array
     {

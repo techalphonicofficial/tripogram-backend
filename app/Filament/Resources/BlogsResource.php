@@ -40,7 +40,7 @@ class BlogsResource extends Resource
         $user = Auth::user();
 
         if (!$user) {
-            abort(403, 'Unauthorized');
+            return false;
         }
 
         if ($user->role == 'admin') {
@@ -106,13 +106,11 @@ class BlogsResource extends Resource
 
                         RichEditor::make('content')
                             ->label('Main Content')
-                            ->required()
                             ->columnSpanFull(),
 
                         Textarea::make('excerpt')
                             ->label('Short Excerpt')
                             ->rows(3)
-                            ->required()
                             ->maxLength(255)
                             ->columnSpanFull(),
 
@@ -120,20 +118,48 @@ class BlogsResource extends Resource
                             ->label('Tags')
                             ->helperText('Comma separated tags')
                             ->columnSpanFull(),
+  Forms\Components\Section::make('Blog Details')
+                    ->schema([
+                        Repeater::make('blogDetails')
+                            ->relationship('blogDetails') // Ye relationship Blogs model mein define hai
+                            ->schema([
+                                FileUpload::make('image')
+                                    ->label('Detail Image')
+                                    ->image()
+                                    ->directory('blog-details')
+                                    ->maxSize(2048)
+                                    ->columnSpanFull(),
 
-                        TextInput::make('status')
-                            ->label('Status')
-                            ->numeric()
-                            ->default(1)
+                                TextInput::make('alt')
+                                    ->label('Image Alt Text')
+                                    ->maxLength(255)
+                                    ->columnSpanFull(),
+
+                                RichEditor::make('content')
+                                    ->label('Detail Content')
+                                    ->required()
+                                    ->columnSpanFull(),
+                            ])
+                            ->addActionLabel('Add Blog Detail')
+                            ->collapsible()
+                            ->defaultItems(0)
                             ->columnSpanFull(),
+                    ]),
+                        Forms\Components\Select::make('status')
+                            ->options([
+                                '1' => 'Active',
+                                '0' => 'Inactive',
+                            ])
+                            ->default('Active')
+                            ->required(),
 
                         Forms\Components\DatePicker::make('date')
                             ->label('Publish Date')
-                            ->required()
-                            ->columnSpanFull(),
-                    ])->columns(2),
+                            ->required(),
+                    ])
+                    ->columns(2),
 
-                // FAQ SECTION - Changed from KeyValue to Repeater
+                // FAQ SECTION
                 Forms\Components\Section::make('FAQ Section')
                     ->schema([
                         Repeater::make('faq')
@@ -154,39 +180,10 @@ class BlogsResource extends Resource
                             ->columnSpanFull(),
                     ]),
 
-                // NEW SECTION: Blog Details (Replaces the RelationManager)
-                Section::make('Blog Details')
-                    ->description('Manage multiple detail blocks for this blog post')
-                    ->schema([
-                        Repeater::make('blogDetails')
-                            ->relationship('blogDetails') // Make sure this relationship exists in Blogs model
-                            ->schema([
-                                FileUpload::make('image')
-                                    ->label('Detail Image')
-                                    ->image()
-                                    ->directory('blog-details')
-                                    ->maxSize(2048)
-                                    ->columnSpanFull(),
-                                
-                                TextInput::make('alt')
-                                    ->label('Image Alt Text')
-                                    ->maxLength(255)
-                                    ->columnSpanFull(),
-                                
-                                RichEditor::make('content')
-                                    ->label('Detail Content')
-                                    ->required()
-                                    ->columnSpanFull()
-                                    ->helperText('Add the detailed content for this blog section'),
-                            ])
-                            ->columns(1)
-                            ->addActionLabel('Add New Detail Block')
-                            ->collapsible()
-                            ->itemLabel(fn (array $state): ?string => $state['alt'] ?? 'New Detail Block')
-                            ->defaultItems(0)
-                            ->columnSpanFull(),
-                    ]),
+                // BLOG DETAILS SECTION (LatestBlogDetail table mein data store hoga)
+              
 
+                // SEO Information
                 Forms\Components\Section::make('SEO Information')
                     ->schema([
                         TextInput::make('meta_title')
@@ -223,20 +220,11 @@ class BlogsResource extends Resource
                     ->limit(70)
                     ->tooltip(fn ($record) => $record->heading),
                 TextColumn::make('slug')->searchable()->limit(30),
-                TextColumn::make('faq')
-                    ->label('FAQs Count')
-                    ->formatStateUsing(fn ($record) => $record->faq ? count($record->faq) . ' FAQs' : 'No FAQs')
-                    ->badge()
-                    ->color(fn ($record) => $record->faq ? 'success' : 'gray'),
-                TextColumn::make('blogDetails')
-                    ->label('Details Count')
-                    ->formatStateUsing(fn ($record) => $record->blogDetails->count() . ' Details')
-                    ->badge()
-                    ->color('info'),
-                TextColumn::make('status')
-                    ->badge()
-                    ->formatStateUsing(fn ($state) => $state == 1 ? 'Active' : 'Inactive')
-                    ->color(fn ($state) => $state == 1 ? 'success' : 'danger'),
+               
+                  TextColumn::make('status')
+    ->badge()
+    ->formatStateUsing(fn ($state) => $state == 1 ? 'Active' : 'Inactive')
+    ->color(fn ($state) => $state == 1 ? 'success' : 'danger'),
                 TextColumn::make('date')->date('d M Y')->sortable(),
                 TextColumn::make('created_at')->dateTime('d M Y')->sortable(),
             ])
@@ -244,8 +232,8 @@ class BlogsResource extends Resource
             ->filters([
                 Tables\Filters\SelectFilter::make('status')
                     ->options([
-                        1 => 'Active',
-                        0 => 'Inactive',
+                        'active' => 'Active',
+                        'inactive' => 'Inactive',
                     ]),
             ])
             ->actions([
@@ -259,9 +247,12 @@ class BlogsResource extends Resource
                 ]),
             ]);
     }
-
-    // REMOVED getRelations() method - No more RelationManager
-
+protected function getTableContentFooter(): ?\Illuminate\Contracts\View\View
+    {
+        return view('filament.components.table-footer', [
+            'total' => $this->getTableRecords()->total(),
+        ]);
+    }
     public static function getPages(): array
     {
         return [

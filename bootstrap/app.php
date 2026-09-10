@@ -13,12 +13,12 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
 
-        // ✅ YAHAN alias register karo (return mat karo)
         $middleware->alias([
             'api.key' => \App\Http\Middleware\CheckApiKey::class,
             'auth.api' => \App\Http\Middleware\AuthApi::class,
         ]);
 
+        $middleware->trustProxies(at: '*');
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

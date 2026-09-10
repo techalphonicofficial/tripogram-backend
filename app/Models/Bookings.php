@@ -12,10 +12,13 @@ class Bookings extends Model
         'full_name',
         'email',
         'phone',
+       'batch_id',
         'package_id',
+       'gst_no',
         'seat_ids',
         'package_title',
         'duration',
+       'source',
         'pickup',
         'drop',
         'start_date',
@@ -25,15 +28,24 @@ class Bookings extends Model
         'payment_mode',
         'payment_transactions',
         'payment_id',
+       'assign_to',
         'payment_type',
         'final_amount',
         'paid_amount',
         'due_amount',
         'status',
+       'booking_type',
         'payment_history',
+         'applied_coupons',
+    'total_coupon_discount',
+       'cron_job',
+       'special_note',
     ];
 
     protected $casts = [
+   
+    'applied_coupons' => 'array',
+   'total_coupon_discount' => 'float',
         'active_cost' => 'array',
         'payment_transactions' => 'array',
         'payment_history' => 'array',
@@ -42,8 +54,14 @@ class Bookings extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
-    
-
+      public function batch(): BelongsTo
+    {
+        return $this->belongsTo(Batch::class, 'batch_id');
+    }
+public function paymentLinks()
+{
+    return $this->hasMany(PaymentLink::class, 'booking_id', 'id');
+}
     public function package()
     {
         return $this->belongsTo(Packages::class, 'package_id', 'id');
@@ -68,13 +86,11 @@ public function feedbacks()
     return $this->hasMany(StayLayout::class);
 }
 
-    protected static function booted()
-    {
-        static::saving(function ($booking) {
-            $booking->calculatePayments();
-        });
-    }
 
+public function assignedUser()
+{
+    return $this->belongsTo(User::class, 'assign_to', 'id');
+}
     public function calculatePayments()
     {
         $paid = collect($this->payment_history)->sum('amount');

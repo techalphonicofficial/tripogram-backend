@@ -13,12 +13,17 @@ class Destinations extends Model
         'banner',
         'meta_title',
       'content',
+      'state_code',
         'meta_description',
         'meta_keywords',
         'is_active',
         'show_in_home',
+       'meta_schema',
+    'faq'
     ];
-    
+    protected $casts = [
+    'faq' => 'array',
+];
     public function packages()
     {
         return $this->hasMany(Packages::class, 'destination_id');

@@ -14,17 +14,14 @@ class TripController extends Controller
         $trips = Trips::all();
         return response()->json($trips);
     }
-  
-public function single_trips(Request $request, $slug)
+ public function single_trips(Request $request, $slug)
 {
     $trip = Trips::where('slug', $slug)->firstOrFail();
-
-
   
     $packages = $trip->packagess()
         ->select(
-            'packages.id',           // ✅ packages. prefix
-            'packages.trip_id',      // ✅ packages. prefix
+            'packages.id',
+            'packages.trip_id',
             'packages.thumbnail',
             'packages.title',
             'packages.slug',
@@ -34,28 +31,23 @@ public function single_trips(Request $request, $slug)
             'packages.drop',
             'packages.is_trending'
         )
-          ->where('packages.is_active', true)
-
-        // ✅ Filter packages having valid upcoming dates
-        ->whereHas('packageDates', function ($query) {
-            $query->whereDate('start_date', '>', Carbon::today())
-                  ->where('status', '!=', 'closed');
-        })
-
+        ->where('packages.is_active', true)
+        
+        // ✅ Fixed: Added proper closure syntax
+      ->whereHas('packageDates', function ($query) {
+    $query->where('status', '!=', 'closed')
+          ->orderBy('start_date', 'asc');
+})
+        
         ->with([
-            'activeCosts', // 👈 add if needed (like in previous API)
-
+            'activeCosts',
             'packageDates' => function ($query) {
-                $query->whereDate('start_date', '>', Carbon::today())
-                      ->where('status', '!=', 'closed')
+                $query->where('status', '!=', 'closed')
                       ->orderBy('start_date', 'asc');
             }
         ])
-
-        // ✅ Better ordering priority
-       // ->orderByDesc('is_trending') // show trending first
+        
         ->orderBy('sort_order', 'asc')
-
         ->get();
 
     return response()->json([

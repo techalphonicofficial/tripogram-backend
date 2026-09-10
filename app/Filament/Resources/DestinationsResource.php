@@ -11,7 +11,9 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Forms\Set;
 use Illuminate\Support\Str;
-
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Repeater;
 
 use Illuminate\Support\Facades\DB;
 
@@ -29,12 +31,10 @@ class DestinationsResource extends Resource
     protected static ?int $navigationSort = 2;
 
 
-     public static function shouldRegisterNavigation(): bool
+    public static function shouldRegisterNavigation(): bool
     {
-
-
         $user = Auth::user();
-// dd($user);
+
         if (!$user) {
             abort(403, 'Unauthorized');
         }
@@ -46,7 +46,7 @@ class DestinationsResource extends Resource
 
        
         $role = Role::where('name', $user->role)->first();
-          $role_id = $role->id;
+        $role_id = $role->id;
         if (!$role_id) {
             return false;
         }
@@ -55,42 +55,24 @@ class DestinationsResource extends Resource
             abort(403, 'Role not found');
         }
         
- 
-        
-  $rolePermissionIds = DB::table('role_has_permissions')
+        $rolePermissionIds = DB::table('role_has_permissions')
             ->where('role_id', $role_id)
             ->pluck('permission_id');
 
-                  if ($rolePermissionIds->isEmpty()) {
+        if ($rolePermissionIds->isEmpty()) {
             return false;
         }
-        
-        
-        // return $rolePermissionIds;
-
-              
         
         $permissionResources = DB::table('permissions')
             ->whereIn('id', $rolePermissionIds)
             ->pluck('resource')
             ->toArray();
 
-
-
-
-        
-      if (!in_array('destinations', $permissionResources)) {
-         return false;
+        if (!in_array('destinations', $permissionResources)) {
+            return false;
         }
 
-       
-
         return true;
-    
-        // return false;
-        // dd('sd');
-        return auth()->user()?->role === 'admin';
-
     }
 
     public static function form(Form $form): Form
@@ -98,14 +80,24 @@ class DestinationsResource extends Resource
         return $form
             ->schema([
                 Forms\Components\TextInput::make('name')
-                        ->live(onBlur: true)
-                        ->afterStateUpdated(fn(Set $set, ?string $state) => $set('slug', Str::slug($state)))
-                        ->required()
-                        ->label('Destination Name'),
-Forms\Components\RichEditor::make('content')
-    ->label('Content')
-    ->required()
-    ->columnSpanFull(),
+                    ->live(onBlur: true)
+                    ->afterStateUpdated(fn(Set $set, ?string $state) => $set('slug', Str::slug($state)))
+                    ->required()
+                    ->label('Destination Name'),
+                
+                // ✅ ADD STATE CODE FIELD
+                Forms\Components\TextInput::make('state_code')
+                    ->label('State Code')
+                    ->maxLength(10)
+                    ->required()
+                    ->helperText('Example: DL, UK, HP, RJ, UP, PB, HR, MP, GJ, MH, WB, KA, TN, KL')
+                    ->placeholder('Enter state code (e.g., DL for Delhi)'),
+                
+                Forms\Components\RichEditor::make('content')
+                    ->label('Content')
+     
+                    ->columnSpanFull(),
+                
                 Forms\Components\TextInput::make('slug')
                     ->required()
                     ->unique(column: 'slug', ignoreRecord: true)
@@ -128,7 +120,24 @@ Forms\Components\RichEditor::make('content')
 
                 Forms\Components\TextInput::make('meta_keywords')
                     ->maxLength(255),
+Textarea::make('meta_schema')
+    ->label('Meta Schema (JSON)')
+    ->rows(8)
+    ->columnSpanFull(),
 
+Repeater::make('faq')
+    ->schema([
+        TextInput::make('question')
+            ->required()
+            ->maxLength(255),
+
+        Textarea::make('answer')
+            ->required()
+            ->rows(3),
+    ])
+    ->columnSpanFull()
+    ->collapsible()
+    ->itemLabel(fn (array $state): ?string => $state['question'] ?? null),
                 Forms\Components\Toggle::make('is_active')
                     ->label('Active')
                     ->default(true),
@@ -149,6 +158,17 @@ Forms\Components\RichEditor::make('content')
                 Tables\Columns\TextColumn::make('name')
                     ->searchable()
                     ->sortable(),
+                
+                // ✅ ADD STATE CODE COLUMN IN TABLE
+                Tables\Columns\TextColumn::make('state_code')
+                    ->label('State Code')
+                    ->searchable()
+                    ->sortable()
+                    ->toggleable()
+                    ->width('100px')
+                    ->badge()
+                    ->color('info'),
+                
                 Tables\Columns\IconColumn::make('is_active')
                     ->label('Active')
                     ->boolean(),
@@ -159,15 +179,34 @@ Forms\Components\RichEditor::make('content')
             ])
             ->defaultSort('id', 'desc')
             ->filters([
-                //
+                // ✅ ADD STATE CODE FILTER
+                Tables\Filters\SelectFilter::make('state_code')
+                    ->label('State Code')
+                    ->options([
+                        'DL' => 'Delhi',
+                        'UK' => 'Uttarakhand',
+                        'HP' => 'Himachal Pradesh',
+                        'RJ' => 'Rajasthan',
+                        'UP' => 'Uttar Pradesh',
+                        'PB' => 'Punjab',
+                        'HR' => 'Haryana',
+                        'MP' => 'Madhya Pradesh',
+                        'GJ' => 'Gujarat',
+                        'MH' => 'Maharashtra',
+                        'WB' => 'West Bengal',
+                        'KA' => 'Karnataka',
+                        'TN' => 'Tamil Nadu',
+                        'KL' => 'Kerala',
+                    ])
+                    ->searchable(),
             ])
             ->actions([
                 Tables\Actions\Action::make('viewPackages')
-                ->label('View Packages')
-                ->icon('heroicon-o-eye')
-                ->color('primary')
-                ->url(fn ($record) => url("/admin/packages?tableFilters[destination_id][value]={$record->id}"))
-                ->openUrlInNewTab(),
+                    ->label('View Packages')
+                    ->icon('heroicon-o-eye')
+                    ->color('primary')
+                    ->url(fn ($record) => url("/admin/packages?tableFilters[destination_id][value]={$record->id}"))
+                    ->openUrlInNewTab(),
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
             ])
