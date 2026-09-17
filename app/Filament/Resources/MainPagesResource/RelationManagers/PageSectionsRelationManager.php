@@ -124,6 +124,31 @@ class PageSectionsRelationManager extends RelationManager
                                 }),
                         ]),
 
+                    Block::make('popup')
+                        ->label('Popup')
+                        ->schema([
+                            ToggleButtons::make('status')
+                                ->label('Status')
+                                ->boolean()
+                                ->grouped()
+                                ->default(false)
+                                ->required(),
+
+                            FileUpload::make('image')
+                                ->label('Popup Image')
+                                ->image()
+                                ->directory('page-sections/popups')
+                                ->required()
+                                ->deleteUploadedFileUsing(function ($file, $record, $state, $get) {
+                                    if ($record && $record->image && $record->image !== $state) {
+                                        Storage::disk('public')->delete($record->image);
+                                    }
+
+                                    return true;
+                                }),
+                        ])
+                        ->columns(2),
+
                     Block::make('image')
                         ->label('Image')
                         ->schema([

@@ -378,7 +378,8 @@ class PackageController extends Controller
             'starting_price',
             'pickup',
             'drop',
-            'is_trending'
+            'is_trending',
+            'season'
         )->where('is_active', 1);
 
         // ✅ Trip filter
@@ -417,7 +418,7 @@ class PackageController extends Controller
 
     public function trending(Request $request)
     {
-        $packages = Packages::select(
+        $query = Packages::select(
             'id',
             'thumbnail',
             'title',
@@ -426,17 +427,49 @@ class PackageController extends Controller
             'starting_price',
             'pickup',
             'drop',
-            'is_trending'
+            'is_trending',
+            'season'
         )
             ->where('is_active', true)
             ->where('is_trending', true)
-
-            // Only packages having non-closed dates
             ->whereHas('packageDates', function ($query) {
                 $query->where('status', '!=', 'closed');
-            })
+            });
 
-            ->with([
+        if ($request->filled('season')) {
+            $seasonMonths = [
+                'spring' => [3, 4, 5],
+                'summer' => [6, 7, 8],
+                'autumn' => [9, 10, 11],
+                'winter' => [12, 1, 2],
+            ];
+            $seasonKey = strtolower((string) $request->query('season'));
+
+            if (!isset($seasonMonths[$seasonKey])) {
+                return response()->json([
+                    'message' => 'Invalid season.',
+                    'available_seasons' => array_keys($seasonMonths),
+                ], 422);
+            }
+
+            $query->where(function ($query) use ($seasonMonths, $seasonKey) {
+                $query->where('season', $seasonKey)
+                    ->orWhere(function ($query) use ($seasonMonths, $seasonKey) {
+                        $query->whereNull('season')
+                            ->whereHas('packageDates', function ($query) use ($seasonMonths, $seasonKey) {
+                                $query->where('status', '!=', 'closed')
+                                    ->where(function ($query) use ($seasonMonths, $seasonKey) {
+                                        foreach ($seasonMonths[$seasonKey] as $month) {
+                                            $query->orWhereMonth('start_date', $month)
+                                                ->orWhereMonth('end_date', $month);
+                                        }
+                                    });
+                            });
+                    });
+            });
+        }
+
+        $packages = $query->with([
                 'packageDates' => function ($query) {
                     $query->where('status', '!=', 'closed')
                         ->orderBy('start_date', 'asc');
@@ -447,6 +480,94 @@ class PackageController extends Controller
             ->get();
 
         return response()->json($packages);
+    }
+
+    public function mostPopularContent()
+    {
+        $content = Settings::query()
+            ->select('popular_title', 'popular_description')
+            ->first();
+
+        return response()->json([
+            'title' => $content?->popular_title ?? 'Most Popular Tour',
+            'description' => $content?->popular_description ?? 'Discover the world\'s most popular tours with Enlivetrips - where every journey is crafted for unforgettable experiences.',
+        ]);
+    }
+
+    public function seasonal(Request $request)
+    {
+        $seasons = [
+            'spring' => ['label' => 'Spring', 'months' => [3, 4, 5], 'date_range' => 'Mar - May'],
+            'summer' => ['label' => 'Summer', 'months' => [6, 7, 8], 'date_range' => 'Jun - Aug'],
+            'autumn' => ['label' => 'Autumn', 'months' => [9, 10, 11], 'date_range' => 'Sep - Nov'],
+            'winter' => ['label' => 'Winter', 'months' => [12, 1, 2], 'date_range' => 'Dec - Feb'],
+        ];
+
+        $seasonKey = strtolower((string) $request->query('season', 'autumn'));
+
+        if (!isset($seasons[$seasonKey])) {
+            return response()->json([
+                'message' => 'Invalid season.',
+                'available_seasons' => array_keys($seasons),
+            ], 422);
+        }
+
+        $months = $seasons[$seasonKey]['months'];
+        $dateFilter = function ($query) use ($months) {
+            $query->where('status', '!=', 'closed')
+                ->where(function ($query) use ($months) {
+                    foreach ($months as $month) {
+                        $query->orWhereMonth('start_date', $month)
+                            ->orWhereMonth('end_date', $month);
+                    }
+                });
+        };
+
+        $packages = Packages::select(
+            'id',
+            'thumbnail',
+            'title',
+            'slug',
+            'duration',
+            'starting_price',
+            'pickup',
+            'drop',
+            'is_trending',
+            'season'
+        )
+            ->where('is_active', true)
+            ->where('is_trending', true)
+            ->whereHas('packageDates', function ($query) {
+                $query->where('status', '!=', 'closed');
+            })
+            ->where(function ($query) use ($seasonKey, $dateFilter) {
+                $query->where('season', $seasonKey)
+                    ->orWhere(function ($query) use ($dateFilter) {
+                        $query->whereNull('season')
+                            ->whereHas('packageDates', $dateFilter);
+                    });
+            })
+            ->with(['packageDates' => function ($query) {
+                $query->where('status', '!=', 'closed')
+                    ->orderBy('start_date', 'asc');
+            }])
+            ->orderByDesc('is_trending')
+            ->orderBy('sort_order')
+            ->get();
+
+        return response()->json([
+            'season' => [
+                'key' => $seasonKey,
+                'label' => $seasons[$seasonKey]['label'],
+                'date_range' => $seasons[$seasonKey]['date_range'],
+            ],
+            'seasons' => collect($seasons)->map(fn ($season, $key) => [
+                'key' => $key,
+                'label' => $season['label'],
+                'date_range' => $season['date_range'],
+            ])->values(),
+            'data' => $packages,
+        ]);
     }
 
     public function single_package($slug)

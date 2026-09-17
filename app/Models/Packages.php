@@ -44,6 +44,7 @@ class Packages extends Model
         'meta_keywords',
         'is_active',
         'is_trending',
+        'season',
         'slot',
         'is_land_package',
         'booking_amount',

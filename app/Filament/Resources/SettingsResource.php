@@ -121,6 +121,23 @@ class SettingsResource extends Resource
                             ->required()
                             ->columnSpanFull(),
                     ]),
+
+                Forms\Components\Section::make('Most Popular Tour Section')
+                    ->schema([
+                        Forms\Components\TextInput::make('popular_title')
+                            ->label('Title')
+                            ->default('Most Popular Tour')
+                            ->required()
+                            ->maxLength(255),
+
+                        Forms\Components\Textarea::make('popular_description')
+                            ->label('Description')
+                            ->default('Discover the world\'s most popular tours with Enlivetrips - where every journey is crafted for unforgettable experiences.')
+                            ->required()
+                            ->rows(4)
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(2),
             ]);
     }
 

@@ -125,6 +125,11 @@ class PopupFormsResource extends Resource
     {
         return $table
             ->columns([
+                Tables\Columns\TextColumn::make('created_at')
+                    ->label('Submitted At')
+                    ->dateTime('d M Y H:i')
+                    ->sortable(),
+
                 Tables\Columns\TextColumn::make('fname')
                     ->label('First Name')
                     ->searchable()
@@ -147,6 +152,7 @@ class PopupFormsResource extends Resource
                     ->label('Message')
                     ->limit(50), // truncate long messages
             ])
+            ->defaultSort('created_at', 'desc')
             ->filters([
                 //
             ])

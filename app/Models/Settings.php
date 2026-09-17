@@ -14,5 +14,7 @@ class Settings extends Model
         'package_amount_percent',
        'gtm_header',
        'gtm_footer',
+      'popular_title',
+      'popular_description',
     ];
 }

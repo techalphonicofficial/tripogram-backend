@@ -5,6 +5,8 @@ use App\Models\Bookings;
 use App\Models\PackageDates;
 use App\Models\Packages;
 use App\Models\PopupForms;
+use App\Models\PopupSetting;
+use App\Models\PopupSlide;
 use App\Models\Newsletters;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
@@ -1036,6 +1038,16 @@ class BookingController extends Controller
         ], 200);
     }
 
+    public function get_popup_enquiries()
+    {
+        $enquiries = PopupForms::latest()->get();
+
+        return response()->json([
+            'success' => true,
+            'data'    => $enquiries
+        ], 200);
+    }
+
 
     public function send_newsletter(Request $request)
     {
@@ -1049,5 +1061,36 @@ class BookingController extends Controller
             'status' => true,
             'message' => 'Newsletter submitted successfully.'
         ], 201);
+    }
+
+    public function popup_content()
+    {
+        $setting = PopupSetting::where('is_active', true)->latest()->first();
+
+        $slides = PopupSlide::where('is_active', true)
+            ->orderBy('sort_order', 'asc')
+            ->get()
+            ->map(fn ($slide) => [
+                'id'          => $slide->id,
+                'title'       => $slide->title,
+                'description' => $slide->description,
+                'image'       => $slide->image,
+            ]);
+
+        return response()->json([
+            'success' => true,
+            'data'    => [
+                'setting' => $setting ? [
+                    'form_heading'       => $setting->form_heading,
+                    'submit_button_text' => $setting->submit_button_text,
+                    'is_active'          => $setting->is_active,
+                ] : [
+                    'form_heading'       => 'Plan your Next Trip',
+                    'submit_button_text' => 'Submit',
+                    'is_active'          => true,
+                ],
+                'slides'  => $slides,
+            ],
+        ]);
     }
 }

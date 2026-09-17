@@ -234,7 +234,18 @@ TextInput::make('package_code')
                                  
                                     
                                     Toggle::make('is_active')->label('Active')->default(true),
-                                    Toggle::make('is_trending')->label('Trending')->default(false),
+                                    Toggle::make('is_trending')->label('Most Popular')->default(false),
+                                    Select::make('season')
+                                        ->label('Popular Tour Season')
+                                        ->options([
+                                            'spring' => 'Spring (Mar - May)',
+                                            'summer' => 'Summer (Jun - Aug)',
+                                            'autumn' => 'Autumn (Sep - Nov)',
+                                            'winter' => 'Winter (Dec - Feb)',
+                                        ])
+                                        ->placeholder('Auto-detect from package dates')
+                                        ->helperText('This controls which season shows this package in the Popular Tours API.')
+                                        ->searchable(),
                                     
                                     Select::make('slot')
                                         ->label('Slot')
@@ -498,7 +509,13 @@ Toggle::make('show_book_no_button')
             
             Tables\Columns\TextColumn::make('duration'),
             Tables\Columns\TextColumn::make('starting_price')->money('INR'),
-            Tables\Columns\ToggleColumn::make('is_trending'),
+            Tables\Columns\ToggleColumn::make('is_trending')
+                ->label('Most Popular'),
+
+            Tables\Columns\TextColumn::make('season')
+                ->label('Season')
+                ->badge()
+                ->formatStateUsing(fn ($state) => $state ? ucfirst($state) : 'Auto'),
           	
             Tables\Columns\ToggleColumn::make('is_active'),
              Tables\Columns\ToggleColumn::make('show_book_no_button')
@@ -531,6 +548,15 @@ Toggle::make('show_book_no_button')
                 ->label('Destination')
                 ->relationship('destination', 'name')
                 ->searchable(),
+
+            Tables\Filters\SelectFilter::make('season')
+                ->label('Season')
+                ->options([
+                    'spring' => 'Spring',
+                    'summer' => 'Summer',
+                    'autumn' => 'Autumn',
+                    'winter' => 'Winter',
+                ]),
           
             Tables\Filters\SelectFilter::make('slug')
                 ->label('Slug')

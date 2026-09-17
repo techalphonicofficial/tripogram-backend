@@ -10,6 +10,9 @@ use App\Http\Controllers\Api\TripController;
 use App\Http\Controllers\Api\DestinationController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\Api\RedirectionsController;
+use App\Http\Controllers\Api\CareerController;
+use App\Http\Controllers\Api\PartnerController;
+use App\Http\Controllers\Api\OfferController;
 use App\Http\Middleware\AuthApi;
 use App\Http\Middleware\CheckApp;
 
@@ -171,6 +174,9 @@ Route::prefix('packages')->controller(PackageController::class)->name('packages.
     Route::get('/{slug}/costs-and-dates', 'costs_and_dates')->name('costs_and_dates');
     Route::get('/grouped-dates', 'groupedDates')->name('groupedDates');
     Route::get('/trending', 'trending')->name('trending');
+    Route::get('/most-popular', 'trending')->name('most_popular');
+    Route::get('/most-popular-content', 'mostPopularContent')->name('most_popular_content');
+    Route::get('/seasonal', 'seasonal')->name('seasonal');
     Route::post('/send-enquiry', 'send_enquiry')->name('send_enquiry');
     Route::post('/send-feedback', 'send_feedback')->name('send_feedback');
     Route::get('/search/{search}', 'search_packages')->name('search_packages');
@@ -199,6 +205,8 @@ Route::prefix('pages')->controller(MainPageController::class)->name('pages.')->g
 });
 
 Route::prefix('booking')->controller(BookingController::class)->name('booking.')->group(function () {
+    Route::get('/popup-content', 'popup_content')->name('popup_content');
+    Route::get('/popup-enquiries', 'get_popup_enquiries')->name('get_popup_enquiries');
     Route::post('/booking-information', 'bookinginformationupdate')->name('bookinginformationupdate');
     Route::get('/get-booking', 'get_booking')->name('get_booking');
     Route::post('/add-booking', 'add_booking')->name('add_booking');
@@ -206,6 +214,8 @@ Route::prefix('booking')->controller(BookingController::class)->name('booking.')
     Route::post('/send-newsletter', 'send_newsletter')->name('send_newsletter');
     Route::post('/send-email/{email}', 'send_email')->name('send_email');
 });
+
+Route::get('/popup-forms', [BookingController::class, 'get_popup_enquiries']);
 
 Route::prefix('destinations')->controller(DestinationController::class)->name('destinations.')->group(function () {
     Route::get('/', 'index')->name('index');
@@ -219,4 +229,64 @@ Route::prefix('redirection')->controller(RedirectionsController::class)->name('r
 Route::get('/sitemap-xml', [MainPageController::class, 'sitemap_xml'])->name('sitemap_xml');
 Route::get('/robots-text', [MainPageController::class, 'robots_txt'])->name('robots_text');
 Route::get('/razorpay', [MainPageController::class, 'razorpay'])->name('razorpay');
+
+// =============================================
+// CAREERS / HIRING API
+// =============================================
+Route::prefix('careers')->controller(CareerController::class)->name('careers.')->group(function () {
+    Route::get('/', 'index')->name('index');                          // Full page data (hero + stats + why join + jobs + faqs)
+
+    // Hero Section & Labels
+    Route::get('/hero', 'hero')->name('hero');                        // Hero section data
+    Route::get('/hero/labels', 'heroLabels')->name('hero.labels');    // Floating hero labels
+
+    // Team Members
+    Route::get('/team-members', 'teamMembers')->name('team_members'); // Avatar + team list
+
+    // Statistics Cards
+    Route::get('/statistics', 'statistics')->name('statistics');      // Statistics cards
+
+    // Why Join Us
+    Route::get('/why-join-us', 'whyJoinUs')->name('why_join_us');     // Why Join Us section + cards
+    Route::get('/why-join-us/cards', 'whyJoinCards')->name('why_join_us.cards'); // Why Join Us cards only
+
+    // Jobs
+    Route::get('/jobs', 'jobs')->name('jobs');                        // Active jobs list
+    Route::get('/jobs/{slug}', 'singleJob')->name('single_job');      // Single job by slug
+
+    // Benefits, FAQs, Settings
+    Route::get('/benefits', 'benefits')->name('benefits');            // Career benefits
+    Route::get('/faqs', 'faqs')->name('faqs');                        // Career FAQs
+    Route::get('/settings', 'settings')->name('settings');            // Career page settings (key-value)
+
+    // Apply
+    Route::post('/apply', 'apply')->name('apply');                    // Submit job application
+});
+
+// =============================================
+// PARTNERSHIPS & RECOGNITION API
+// =============================================
+Route::prefix('partnerships')->controller(PartnerController::class)->name('partnerships.')->group(function () {
+    Route::get('/', 'index')->name('index');            // Full section + all partners
+    Route::get('/section', 'section')->name('section'); // Section heading only
+    Route::get('/partners', 'partners')->name('partners'); // Partners list only
+});
+
+// =============================================
+// OFFERS & PROMOTIONS API
+// =============================================
+Route::prefix('offers')->controller(OfferController::class)->name('offers.')->group(function () {
+    Route::get('/', 'index')->name('index');                          // Full offers page data
+    Route::get('/hero', 'hero')->name('hero');                        // Banner & navbar text
+    Route::get('/cards', 'cards')->name('cards');                      // Highlight cards
+    Route::get('/travel-spots', 'travelSpots')->name('travel_spots');  // Travel spots section & cards
+    Route::get('/faqs', 'faqs')->name('faqs');                        // Grand Sale FAQs section & items
+});
+
+// Frontend Developer Exact Alias Routes for Offers
+Route::get('/offer-hero-sections', [OfferController::class, 'hero']);
+Route::get('/offer-cards', [OfferController::class, 'cards']);
+Route::get('/offer-travel-spots', [OfferController::class, 'travelSpots']);
+Route::get('/offer-faqs', [OfferController::class, 'faqs']);
+
 //});
