@@ -35,7 +35,7 @@ class BookingConfirmedMail extends Mailable implements ShouldQueue
     {
         return new Envelope(
             from: new Address(
-                'booking@enlivetrips.com',
+                'booking@tripogramclub.com',
                 'tripogramclub '
             ),
             subject: 'tripogramclub Booking Confirmation - #' . $this->booking->booking_token,

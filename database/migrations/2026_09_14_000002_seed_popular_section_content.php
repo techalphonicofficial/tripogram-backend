@@ -12,7 +12,7 @@ return new class extends Migration
             ->orWhereNull('popular_description')
             ->update([
                 'popular_title' => 'Most Popular Tour',
-                'popular_description' => 'Discover the world\'s most popular tours with Enlivetrips - where every journey is crafted for unforgettable experiences.',
+                'popular_description' => 'Discover the world\'s most popular tours with Tripogramclub - where every journey is crafted for unforgettable experiences.',
             ]);
     }
 

@@ -68,7 +68,7 @@
                                     <td style="padding-bottom: 25px;">
                                         <p
                                             style="color: #333333; line-height: 1.6; margin: 0; font-family: Arial, sans-serif;">
-                                            Thank you for choosing EnliveTrips. Your booking details are outlined below.
+                                            Thank you for choosing Tripogramclub. Your booking details are outlined below.
                                         </p>
                                     </td>
                                 </tr>
@@ -491,7 +491,7 @@
                                     <td>
                                         <p
                                             style="color: #333333; line-height: 1.6; margin: 0; font-family: Arial, sans-serif;">
-                                            Warm regards,<br><strong>The EnliveTrips Team</strong>
+                                            Warm regards,<br><strong>The Tripogramclub Team</strong>
                                         </p>
                                     </td>
                                 </tr>
@@ -525,7 +525,7 @@
                                     <td>
                                         <p
                                             style="font-size: 13px; color: #95a5a6; margin: 0; font-family: Arial, sans-serif;">
-                                            &copy; 2025 EnliveTrips. All rights reserved.
+                                            &copy; 2025 Tripogramclub. All rights reserved.
                                         </p>
                                     </td>
                                 </tr>

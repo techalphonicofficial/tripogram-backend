@@ -110,10 +110,10 @@ class BookingsResource extends Resource
             $response = Http::post('https://api.sendinai.com/sender', [
                 "token" => "Hn8OQb2zZwDGvdhjwgHrChbit3QqQFyrjLPKkkto475bac3e",
                 "phone" => $booking->phone,
-                "template_name" => "booking_confirmation_enlivetrips",
+                "template_name" => "booking_confirmation_tripogramclub",
                 "template_language" => "EN_US",
                 "text1" => $booking->full_name,
-                "text2" => "https://www.enlivetrips.com/booking-detail?id=" . $booking->booking_token,
+                "text2" => "https://www.tripogramclub.com/booking-detail?id=" . $booking->booking_token,
                 "text3" => $booking_dataas,
                 "text4" => $package->title,
                 "text5" => $startDate,
@@ -121,7 +121,7 @@ class BookingsResource extends Resource
                 "text7" => "Subtotal: ₹" . number_format($subtotalWithoutGST, 2) . " | Total GST: ₹" . number_format($gstTotal, 2) . " (5%) | Grand Total: ₹" . number_format($booking->final_amount, 2),
                 "text8" => "Paid: ₹" . number_format($booking->paid_amount, 2),
                 "text9" => "Due: ₹" . number_format($booking->due_amount, 2),
-                "text10" => "https://www.enlivetrips.com/terms-and-conditions"
+                "text10" => "https://www.tripogramclub.com/terms-and-conditions"
             ]);
 
             \Log::info('WhatsApp API RESPONSE (Send Again Button)', [

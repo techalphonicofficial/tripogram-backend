@@ -132,7 +132,7 @@ class SettingsResource extends Resource
 
                         Forms\Components\Textarea::make('popular_description')
                             ->label('Description')
-                            ->default('Discover the world\'s most popular tours with Enlivetrips - where every journey is crafted for unforgettable experiences.')
+                            ->default('Discover the world\'s most popular tours with Tripogramclub - where every journey is crafted for unforgettable experiences.')
                             ->required()
                             ->rows(4)
                             ->columnSpanFull(),

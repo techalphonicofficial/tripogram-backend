@@ -25,7 +25,7 @@ class BookingConfirmation extends Mailable
         
         // Generate booking link with token
         $token = $booking->booking_token ?? '';
-        $this->bookingLink = 'https://www.enlivetrips.com/booking-detail?id=' . $token;
+        $this->bookingLink = 'https://www.tripogramclub.com/booking-detail?id=' . $token;
     }
 
     /**

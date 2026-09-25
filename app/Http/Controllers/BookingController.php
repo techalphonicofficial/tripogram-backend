@@ -941,10 +941,10 @@ class BookingController extends Controller
             Http::post('https://api.sendinai.com/sender', [
                 "token" => "Hn8OQb2zZwDGvdhjwgHrChbit3QqQFyrjLPKkkto475bac3e",
                 "phone" => $booking->phone ?? '',
-                "template_name" => "booking_confirmation_enlivetrips",
+                "template_name" => "booking_confirmation_tripogramclub",
                 "template_language" => "EN_US",
                 "text1" => $booking->full_name,
-                "text2" => "https://www.enlivetrips.com/booking-detail?id=" . $booking->booking_token,
+                "text2" => "https://www.tripogramclub.com/booking-detail?id=" . $booking->booking_token,
                 "text3" => $booking_dataas,
                 "text4" => $package->title,
                 "text5" => $startDate,
@@ -952,7 +952,7 @@ class BookingController extends Controller
                 "text7" => "Total: ₹" . number_format($booking->final_amount, 2),
                 "text8" => number_format($booking->paid_amount, 2),
                 "text9" => number_format($booking->due_amount, 2),
-                "text10" => "https://www.enlivetrips.com/terms-condition"
+                "text10" => "https://www.tripogramclub.com/terms-condition"
             ]);
         } catch (\Exception $e) {
             Log::error('WhatsApp API Failed: ' . $e->getMessage());
@@ -979,22 +979,36 @@ class BookingController extends Controller
 
     public function popup_enquiry(Request $request)
     {
-        $validated = $request->validate([
-            'fname' => 'nullable|string|max:255',
-            'lname' => 'nullable|string|max:255',
-            'contact' => 'required|string|max:20',
-            'email' => 'nullable|email|max:255',
-            'message' => 'nullable|string|max:500',
-        ]);
+        $fname = $request->input('fname') ?? $request->input('full_name') ?? $request->input('first_name');
+        $lname = $request->input('lname') ?? $request->input('last_name');
+        $contact = $request->input('contact') ?? $request->input('phone');
+        $email = $request->input('email');
+        $message = $request->input('message');
+
+        if (empty($contact)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Contact number is required.'
+            ], 422);
+        }
 
         // ✅ Store in DB
-        $popupForm = PopupForms::create($validated);
-        event(new \App\Events\PopupFormCreated($popupForm));
+        $popupForm = PopupForms::create([
+            'fname'   => $fname,
+            'lname'   => $lname,
+            'contact' => $contact,
+            'email'   => $email,
+            'message' => $message,
+        ]);
+
+        try {
+            event(new \App\Events\PopupFormCreated($popupForm));
+        } catch (\Throwable $e) {}
 
         // 🔥 PRIVYR WEBHOOK CALL
         // $payload = [
         //     'name' => $validated['fname'],
-        //     'lead_source' => 'www.enlivetrips.com',
+        //     'lead_source' => 'www.tripogramclub.com',
         //     'email' => $validated['email'] ?? '',
         //     'phone' => $validated['contact'],
         //     'other_fields' => [

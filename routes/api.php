@@ -87,7 +87,7 @@ Route::get('/mail-config-check', function () {
 Route::get('/sorry-feedback', [BookingController::class, 'sorryfeedback']);
 Route::get('/mailssss', function () {
 
-    $file = '/home/enlivetrips.com/public_html/dashboard.enlivetrips.com/vendor/filament/forms/src/helpers.php';
+    $file = '/home/tripogramclub.com/public_html/dashboard.tripogramclub.com/vendor/filament/forms/src/helpers.php';
 
     if (file_exists($file)) {
 
@@ -135,7 +135,7 @@ Route::get('/mail-header-test', function () {
     Mail::raw('Header Test', function ($message) {
 
         $message->from(
-            'booking@enlivetrips.com',
+            'booking@tripogramclub.com',
             'tripogramclub'
         );
 

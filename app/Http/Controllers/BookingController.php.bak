@@ -794,10 +794,10 @@ $bookingId = $prefix . $serial;
         Http::post('https://api.sendinai.com/sender', [
             "token" => "Hn8OQb2zZwDGvdhjwgHrChbit3QqQFyrjLPKkkto475bac3e",
             "phone" => $booking->phone ?? '',
-            "template_name" => "booking_confirmation_enlivetrips",
+            "template_name" => "booking_confirmation_tripogramclub",
             "template_language" => "EN_US",
             "text1" => $booking->full_name,
-            "text2" => "https://www.enlivetrips.com/booking-detail?id=" . $booking->booking_token,
+            "text2" => "https://www.tripogramclub.com/booking-detail?id=" . $booking->booking_token,
             "text3" => $booking_dataas,
             "text4" => $package->title,
             "text5" => $startDate,
@@ -805,7 +805,7 @@ $bookingId = $prefix . $serial;
             "text7" => "Total: ₹" . number_format($booking->final_amount, 2),
             "text8" => number_format($booking->paid_amount, 2),
             "text9" => number_format($booking->due_amount, 2),
-            "text10" => "https://www.enlivetrips.com/terms-condition"
+            "text10" => "https://www.tripogramclub.com/terms-condition"
         ]);
     } catch (\Exception $e) {
         Log::error('WhatsApp API Failed: ' . $e->getMessage());
@@ -847,7 +847,7 @@ $bookingId = $prefix . $serial;
     // 🔥 PRIVYR WEBHOOK CALL
     $payload = [
         'name'        => $validated['fname'],
-        'lead_source' => 'www.enlivetrips.com',
+        'lead_source' => 'www.tripogramclub.com',
         'email'       => $validated['email'] ?? '',
         'phone'       => $validated['contact'],
         'other_fields' => [

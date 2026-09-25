@@ -112,7 +112,7 @@ class PackageController extends Controller
             $couponCode = $member->coupon->coupon->code ?? null;
             $couponAmount = $member->coupon->coupon_amount ?? null;
 
-            $feedbackUrl = "https://www.enlivetrips.com/feedback?" . http_build_query([
+            $feedbackUrl = "https://www.tripogramclub.com/feedback?" . http_build_query([
                 'booking_id' => $booking->id,
                 'member_id' => $member->id,
                 'name' => $memberName,
@@ -490,7 +490,7 @@ class PackageController extends Controller
 
         return response()->json([
             'title' => $content?->popular_title ?? 'Most Popular Tour',
-            'description' => $content?->popular_description ?? 'Discover the world\'s most popular tours with Enlivetrips - where every journey is crafted for unforgettable experiences.',
+            'description' => $content?->popular_description ?? 'Discover the world\'s most popular tours with Tripogramclub - where every journey is crafted for unforgettable experiences.',
         ]);
     }
 
@@ -706,7 +706,7 @@ class PackageController extends Controller
         // 🔥 PRIVYR WEBHOOK CALL (same as callback API)
         $payload = [
             'name' => $request->name,
-            'lead_source' => 'www.enlivetrips.com',
+            'lead_source' => 'www.tripogramclub.com',
             'email' => $request->email,
             'phone' => preg_replace('/\D/', '', $request->phone),
             'other_fields' => [

@@ -285,10 +285,10 @@ class PostOrderController extends Controller
 //         $response = Http::timeout(30)->post('https://api.sendinai.com/sender', [
 //             "token" => "Hn8OQb2zZwDGvdhjwgHrChbit3QqQFyrjLPKkkto475bac3e",
 //             "phone" => $booking->phone,
-//             "template_name" => "booking_confirmation_enlivetrips",
+//             "template_name" => "booking_confirmation_tripogramclub",
 //             "template_language" => "EN_US",
 //             "text1" => $booking->full_name ?? 'Guest',
-//             "text2" => "https://www.enlivetrips.com/booking-detail?id=" . ($booking->booking_token ?? ''),
+//             "text2" => "https://www.tripogramclub.com/booking-detail?id=" . ($booking->booking_token ?? ''),
 //             "text3" => $booking_dataas,
 //             "text4" => $package->title ?? 'Package',
 //             "text5" => $startDate,
@@ -296,7 +296,7 @@ class PostOrderController extends Controller
 //             "text7" => $text7,
 //             "text8" => "Paid: ₹" . number_format($booking->paid_amount ?? 0, 2),
 //             "text9" => "Due: ₹" . number_format($booking->due_amount ?? 0, 2),
-//             "text10" => "https://www.enlivetrips.com/terms-and-conditions"
+//             "text10" => "https://www.tripogramclub.com/terms-and-conditions"
 //         ]);
 
     //         \Log::info('WhatsApp API RESPONSE (Send Again Button)', [
