@@ -362,47 +362,70 @@ class CareerController extends Controller
     // List of active jobs
     // =============================================
 
-    public function jobs(Request $request)
-    {
-        $query = Career::where('is_active', true)
-            ->orderBy('sort_order', 'asc');
+   public function jobs(Request $request)
+{
+    $query = Career::where('is_active', true)
+        ->orderBy('sort_order', 'asc');
 
-        if ($request->filled('department')) {
-            $query->where('department', $request->department);
-        }
-        if ($request->filled('location')) {
-            $query->where('location', $request->location);
-        }
-        if ($request->filled('job_type')) {
-            $query->where('job_type', $request->job_type);
-        }
-
-        $jobs = $query->select([
-            'id', 'title', 'slug', 'department', 'location',
-            'job_type', 'experience', 'salary', 'short_description',
-            'application_deadline',
-        ])->get()->map(function ($j) {
-            return [
-                'id'                   => $j->id,
-                'title'                => $j->title,
-                'slug'                 => $j->slug,
-                'department'           => $j->department,
-                'location'             => $j->location,
-                'job_type'             => $j->job_type,
-                'experience'           => $j->experience,
-                'salary'               => $j->salary,
-                'short_description'    => $j->short_description,
-                'application_deadline' => $j->application_deadline
-                    ? $j->application_deadline->format('Y-m-d')
-                    : null,
-            ];
-        });
-
-        return response()->json([
-            'success' => true,
-            'data'    => $jobs,
-        ]);
+    if ($request->filled('department')) {
+        $query->where('department', $request->department);
     }
+
+    if ($request->filled('location')) {
+        $query->where('location', $request->location);
+    }
+
+    if ($request->filled('job_type')) {
+        $query->where('job_type', $request->job_type);
+    }
+
+    $jobs = $query->select([
+        'id',
+        'title',
+        'slug',
+        'department',
+        'location',
+        'job_type',
+        'experience',
+        'salary',
+        'short_description',
+        'description',
+        'requirements',
+        'skills',
+        'application_deadline',
+        'is_active',
+        'sort_order',
+        'created_at',
+        'updated_at',
+    ])->get()->map(function ($j) {
+        return [
+            'id'                   => $j->id,
+            'title'                => $j->title,
+            'slug'                 => $j->slug,
+            'department'           => $j->department,
+            'location'             => $j->location,
+            'job_type'             => $j->job_type,
+            'experience'           => $j->experience,
+            'salary'               => $j->salary,
+            'short_description'    => $j->short_description,
+            'description'          => $j->description,
+            'requirements'         => $j->requirements,
+            'skills'               => $j->skills ?? [],
+            'application_deadline' => $j->application_deadline
+                ? $j->application_deadline->format('Y-m-d')
+                : null,
+            'is_active'            => $j->is_active,
+            'sort_order'           => $j->sort_order,
+            'created_at'           => $j->created_at,
+            'updated_at'           => $j->updated_at,
+        ];
+    });
+
+    return response()->json([
+        'success' => true,
+        'data'    => $jobs,
+    ]);
+}
 
     // =============================================
     // GET /api/careers/jobs/{slug}
