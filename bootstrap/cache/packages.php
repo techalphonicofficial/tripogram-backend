@@ -39,13 +39,6 @@
       0 => 'CodeWithKyrian\\FilamentDateRange\\DateRangeServiceProvider',
     ),
   ),
-  'dedoc/scramble' => 
-  array (
-    'providers' => 
-    array (
-      0 => 'Dedoc\\Scramble\\ScrambleServiceProvider',
-    ),
-  ),
   'filament/actions' => 
   array (
     'providers' => 
@@ -109,20 +102,6 @@
       0 => 'Kirschbaum\\PowerJoins\\PowerJoinsServiceProvider',
     ),
   ),
-  'laravel/pail' => 
-  array (
-    'providers' => 
-    array (
-      0 => 'Laravel\\Pail\\PailServiceProvider',
-    ),
-  ),
-  'laravel/sail' => 
-  array (
-    'providers' => 
-    array (
-      0 => 'Laravel\\Sail\\SailServiceProvider',
-    ),
-  ),
   'laravel/tinker' => 
   array (
     'providers' => 
@@ -146,13 +125,6 @@
     'providers' => 
     array (
       0 => 'Carbon\\Laravel\\ServiceProvider',
-    ),
-  ),
-  'nunomaduro/collision' => 
-  array (
-    'providers' => 
-    array (
-      0 => 'NunoMaduro\\Collision\\Adapters\\Laravel\\CollisionServiceProvider',
     ),
   ),
   'nunomaduro/termwind' => 
