@@ -8,7 +8,7 @@ return [
     |--------------------------------------------------------------------------
     |
     | FRONTEND_URL must be set in .env to match the Next.js domain.
-    | For local development, set FRONTEND_URL=http://localhost:3000
+    | For local development, set FRONTEND_URL=https://www.tripogramclub.com
     | For production, set FRONTEND_URL=https://tripogramclub.com
     |
     */
@@ -18,8 +18,8 @@ return [
     'allowed_methods' => ['*'],
 
     'allowed_origins' => array_filter([
-        env('FRONTEND_URL', 'http://localhost:3000'),
-        'http://localhost:3000',
+        env('FRONTEND_URL', 'https://tripogramclub.com'),
+        'https://www.tripogramclub.com',
         'http://127.0.0.1:3000',
     ]),
 
