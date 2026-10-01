@@ -78,33 +78,39 @@ class PendingBookingResource extends Resource
                     ->color('success')
                     ->requiresConfirmation()
                     ->action(function (Bookings $record) {
-
-                        $record->update([
-                            'status' => 'confirmed',
-                        ]);
-
+                        if (empty($record->booking_token)) {
+                            $record->booking_token = (string) \Illuminate\Support\Str::uuid();
+                        }
+                        $record->status = 'confirmed';
+                        $record->save();
                     }),
+
+                Tables\Actions\DeleteAction::make(),
 
             ])
 
             ->bulkActions([
 
-                Tables\Actions\BulkAction::make('confirm_selected')
-                    ->label('Confirm Selected')
-                    ->icon('heroicon-o-check-circle')
-                    ->color('success')
-                    ->requiresConfirmation()
-                    ->action(function ($records) {
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\BulkAction::make('confirm_selected')
+                        ->label('Confirm Selected')
+                        ->icon('heroicon-o-check-circle')
+                        ->color('success')
+                        ->requiresConfirmation()
+                        ->action(function ($records) {
 
-                        foreach ($records as $record) {
+                            foreach ($records as $record) {
+                                if (empty($record->booking_token)) {
+                                    $record->booking_token = (string) \Illuminate\Support\Str::uuid();
+                                }
+                                $record->status = 'confirmed';
+                                $record->save();
+                            }
 
-                            $record->update([
-                                'status' => 'confirmed',
-                            ]);
+                        }),
 
-                        }
-
-                    }),
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
 
             ])
 

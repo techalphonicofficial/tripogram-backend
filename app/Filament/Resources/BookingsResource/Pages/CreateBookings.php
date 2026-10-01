@@ -295,7 +295,7 @@ class CreateBookings extends CreateRecord
                         'booking_id' => $booking->booking_id,
                         'payment_type' => 'balance'
                     ],
-                    'callback_url' => 'https://tripogramclub.com/payment-callback',
+                    'callback_url' => 'http://localhost:3000/payment-callback',
                     'callback_method' => 'get'
                 ]);
 

@@ -157,7 +157,7 @@ class BookingsExport implements FromCollection, WithHeadings, WithMapping, Shoul
             $booking->pickup,
             $booking->drop,
             $genderCount,
-            'https://tripogramclub.com/booking-detail?id=' . $booking->booking_token,
+            'http://localhost:3000/booking-detail?id=' . $booking->booking_token,
             $activities ?: '-',
             $amountBeforeCoupon,
             $booking->final_amount,

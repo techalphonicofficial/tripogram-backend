@@ -58,7 +58,7 @@ class BookingConfirmedMail extends Mailable implements ShouldQueue
     // }
     public function content(): Content
     {
-        $url = 'https://tripogramclub.com/booking-detail?id=' . $this->booking->booking_token;
+        $url = 'http://localhost:3000/booking-detail?id=' . $this->booking->booking_token;
 
 
         return new Content(

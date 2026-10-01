@@ -27,6 +27,7 @@ class InfoGet extends Model
 		'priority',
         'id_proof_type',
         'id_proof_number',
+        'id_proof_file',
 
         'emergency_name',
         'emergency_contact',

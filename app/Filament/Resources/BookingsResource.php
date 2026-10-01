@@ -1357,7 +1357,7 @@ class BookingsResource extends Resource
 
                 Tables\Columns\TextColumn::make('booking_token')
                     ->label('Link')
-                    ->url(fn($record) => 'https://tripogramclub.com/booking-detail?id=' . $record->booking_token)
+                    ->url(fn($record) => 'http://localhost:3000/booking-detail?id=' . $record->booking_token)
                     ->openUrlInNewTab()
                     ->searchable()
                     ->toggleable()
@@ -1662,6 +1662,64 @@ class BookingsResource extends Resource
                             ->orderBy('member_number')
                             ->get();
 
+                        if ($members->isEmpty() && !empty($record->data_get)) {
+                            $dataGet = is_string($record->data_get) ? json_decode($record->data_get, true) : $record->data_get;
+                            if (is_array($dataGet)) {
+                                $sections = [];
+                                foreach ($dataGet as $sharingType => $details) {
+                                    if (isset($details['members']) && is_array($details['members'])) {
+                                        $memberFields = [];
+                                        foreach ($details['members'] as $index => $member) {
+                                            $memberFields[] = Forms\Components\Grid::make(3)
+                                                ->schema([
+                                                    Forms\Components\Placeholder::make("json_member_{$index}_name")
+                                                        ->label('Name')
+                                                        ->content($member['name'] ?? 'N/A'),
+                                                    Forms\Components\Placeholder::make("json_member_{$index}_gender")
+                                                        ->label('Gender')
+                                                        ->content(ucfirst($member['gender'] ?? 'N/A')),
+                                                    Forms\Components\Placeholder::make("json_member_{$index}_contact")
+                                                        ->label('Contact')
+                                                        ->content($member['contact'] ?? 'N/A'),
+                                                    Forms\Components\Placeholder::make("json_member_{$index}_email")
+                                                        ->label('Email')
+                                                        ->content($member['email'] ?? 'N/A'),
+                                                    Forms\Components\Placeholder::make("json_member_{$index}_dob")
+                                                        ->label('Date of Birth')
+                                                        ->content($member['dob'] ?? 'N/A'),
+                                                    Forms\Components\Placeholder::make("json_member_{$index}_id_proof")
+                                                        ->label('ID Proof')
+                                                        ->content(($member['id_proof_type'] ?? '') . (!empty($member['id_proof_number']) ? " - {$member['id_proof_number']}" : '')),
+                                                    Forms\Components\Placeholder::make("json_member_{$index}_id_file")
+                                                        ->label('ID Proof Document')
+                                                        ->content(function () use ($member) {
+                                                            if (!empty($member['id_proof_file'])) {
+                                                                $url = 'http://localhost/tripo/public/storage/' . ltrim($member['id_proof_file'], '/');
+                                                                return new \Illuminate\Support\HtmlString("<a href='{$url}' target='_blank' style='display: inline-flex; align-items: center; gap: 4px; color: #2563eb; font-weight: 600; text-decoration: underline;'>📄 View / Download ID Proof</a>");
+                                                            }
+                                                            return !empty($member['has_file']) ? 'Uploaded' : 'Not Uploaded';
+                                                        }),
+                                                    Forms\Components\Placeholder::make("json_member_{$index}_emergency")
+                                                        ->label('Emergency Contact')
+                                                        ->content(($member['emergency_name'] ?? '') . (!empty($member['emergency_contact']) ? " ({$member['emergency_contact']})" : '')),
+                                                ]);
+                                            if ($index < count($details['members']) - 1) {
+                                                $memberFields[] = Forms\Components\Placeholder::make("json_sep_{$index}")
+                                                    ->content('')
+                                                    ->extraAttributes(['class' => 'border-b my-2']);
+                                            }
+                                        }
+                                        $sections[] = Forms\Components\Section::make(ucfirst(str_replace('_', ' ', $sharingType)) . " Sharing")
+                                            ->schema($memberFields)
+                                            ->collapsible();
+                                    }
+                                }
+                                if (!empty($sections)) {
+                                    return $sections;
+                                }
+                            }
+                        }
+
                         if ($members->isEmpty()) {
                             return [
                                 Forms\Components\Placeholder::make('no_members')
@@ -1695,6 +1753,15 @@ class BookingsResource extends Resource
                                         Forms\Components\Placeholder::make("member_{$member->id}_id_proof")
                                             ->label('ID Proof')
                                             ->content(($member->id_proof_type ?? '') . ($member->id_proof_number ? " - {$member->id_proof_number}" : '')),
+                                        Forms\Components\Placeholder::make("member_{$member->id}_id_file")
+                                            ->label('ID Proof Document')
+                                            ->content(function () use ($member) {
+                                                if (!empty($member->id_proof_file)) {
+                                                    $url = 'http://localhost/tripo/public/storage/' . ltrim($member->id_proof_file, '/');
+                                                    return new \Illuminate\Support\HtmlString("<a href='{$url}' target='_blank' style='display: inline-flex; align-items: center; gap: 4px; color: #2563eb; font-weight: 600; text-decoration: underline;'>📄 View / Download ID Proof</a>");
+                                                }
+                                                return $member->has_file ? 'Uploaded' : 'Not Uploaded';
+                                            }),
                                         Forms\Components\Placeholder::make("member_{$member->id}_emergency")
                                             ->label('Emergency Contact')
                                             ->content(($member->emergency_name ?? '') . ($member->emergency_contact ? " ({$member->emergency_contact})" : '')),
@@ -1707,7 +1774,7 @@ class BookingsResource extends Resource
                                 }
                             }
 
-                            $sections[] = Forms\Components\Section::make("{$sharingType} Sharing")
+                            $sections[] = Forms\Components\Section::make(ucfirst(str_replace('_', ' ', $sharingType)) . " Sharing")
                                 ->schema($memberFields)
                                 ->collapsible();
                         }
@@ -1839,7 +1906,7 @@ class BookingsResource extends Resource
                                     'payment_type' => 'balance',
                                 ],
 
-                                'callback_url' => 'https://tripogramclub.com/payment-callback',
+                                'callback_url' => 'http://localhost:3000/payment-callback',
 
                                 'callback_method' => 'get',
                             ]);
@@ -2122,7 +2189,7 @@ class BookingsResource extends Resource
                                         self::getGenderCountFromInfoGet($record),
                                         self::getMemberNames($record),
                                         self::getMemberDetails($record),
-                                        'https://tripogramclub.com/booking-detail?id=' . $record->booking_token,
+                                        'http://localhost:3000/booking-detail?id=' . $record->booking_token,
                                         self::getPaymentInfo($record),
                                         self::getActivities($record),
                                         ($record->final_amount ?? 0) + ($record->total_coupon_discount ?? 0),

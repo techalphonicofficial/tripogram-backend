@@ -23,7 +23,7 @@
                             <table width="100%" border="0" cellpadding="0" cellspacing="0">
                                 <tr>
                                     <td style="padding-bottom: 10px;">
-                                        <img src="https://tripogramclub.com/assets/images/logo.png" alt="tripogramclub"
+                                        <img src="http://localhost:3000/assets/images/logo.png" alt="tripogramclub"
                                             width="100" style="border-radius: 50px; display: block; margin: 0 auto;">
                                     </td>
                                 </tr>

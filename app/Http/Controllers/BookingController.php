@@ -511,9 +511,19 @@ class BookingController extends Controller
 
     public function bookinginformationupdate(Request $request)
     {
-        $bookingId = data_get($request->all(), 'booking_info.booking_id');
+        $bookingInfo = $request->input('booking_info');
+        if (is_string($bookingInfo)) {
+            $bookingInfo = json_decode($bookingInfo, true);
+        }
+
+        $bookingId = data_get($bookingInfo, 'booking_id') ?? $request->input('booking_id');
 
         $booking = Bookings::find($bookingId);
+        if (!$booking) {
+            $booking = Bookings::where('booking_token', $bookingId)
+                ->orWhere('booking_id', $bookingId)
+                ->first();
+        }
 
         if (!$booking) {
             return response()->json([
@@ -526,15 +536,40 @@ class BookingController extends Controller
         $package = Packages::find($booking->package_id);
         $couponAmount = $package->coupon_amount ?? 500; // Use package's coupon amount or default 500
 
-        $sharingDetails = data_get($request->all(), 'sharing_details');
+        $sharingDetails = $request->input('sharing_details');
+        if (is_string($sharingDetails)) {
+            $sharingDetails = json_decode($sharingDetails, true);
+        }
 
         if ($sharingDetails) {
+            // Delete previous member records for this booking to prevent DUPLICATE members when editing
+            InfoGet::where('booking_id', $booking->id)->delete();
 
-            foreach ($sharingDetails as $sharingType => $details) {
+            $globalMemberIndex = 0;
+
+            foreach ($sharingDetails as $sharingType => &$details) {
 
                 if (isset($details['members'])) {
 
-                    foreach ($details['members'] as $member) {
+                    foreach ($details['members'] as $idx => &$member) {
+                        $memberNum = $member['member_number'] ?? ($idx + 1);
+
+                        // File upload handling
+                        $filePath = null;
+                        $fileKey1 = "file_{$sharingType}_{$memberNum}";
+                        $fileKey2 = "id_proof_file_{$globalMemberIndex}";
+
+                        $uploadedFile = $request->file($fileKey1) ?? $request->file($fileKey2);
+                        if (!$uploadedFile && $request->hasFile("file_{$globalMemberIndex}")) {
+                            $uploadedFile = $request->file("file_{$globalMemberIndex}");
+                        }
+
+                        if ($uploadedFile && $uploadedFile->isValid()) {
+                            $fileName = time() . '_' . uniqid() . '.' . $uploadedFile->getClientOriginalExtension();
+                            $filePath = $uploadedFile->storeAs('id_proofs', $fileName, 'public');
+                            $member['id_proof_file'] = $filePath;
+                            $member['has_file'] = true;
+                        }
 
                         $person = InfoGet::create([
                             'package_id' => $booking->package_id,
@@ -542,7 +577,7 @@ class BookingController extends Controller
                             'start_date' => $booking->start_date,
 
                             'sharing_type' => $sharingType,
-                            'member_number' => $member['member_number'] ?? null,
+                            'member_number' => $memberNum,
 
                             'name' => $member['name'] ?? null,
                             'email' => $member['email'] ?? null,
@@ -552,12 +587,13 @@ class BookingController extends Controller
 
                             'id_proof_type' => $member['id_proof_type'] ?? null,
                             'id_proof_number' => $member['id_proof_number'] ?? null,
+                            'id_proof_file' => $filePath,
 
                             'emergency_name' => $member['emergency_name'] ?? null,
                             'emergency_contact' => $member['emergency_contact'] ?? null,
                             'emergency_relation' => $member['emergency_relation'] ?? null,
 
-                            'has_file' => $member['has_file'] ?? false
+                            'has_file' => !empty($filePath) || ($member['has_file'] ?? false)
                         ]);
 
                         $coupon = Coupon::create([
@@ -574,35 +610,64 @@ class BookingController extends Controller
                             'coupon_amount' => $coupon->discount_value,
                             'status' => 'unused'
                         ]);
+
+                        $globalMemberIndex++;
                     }
                 }
             }
+            unset($member, $details);
         }
 
         // booking table me json bhi save kar diya
         $booking->data_get = $sharingDetails;
 
-        // token null
-        $booking->booking_token = null;
+        // Preserve booking_token so the booking link stays active
+        if (empty($booking->booking_token)) {
+            $booking->booking_token = (string) Str::uuid();
+        }
 
-        $booking->save(); // ✅ Remove $datasss variable
+        $booking->save();
 
         return response()->json([
             'success' => true,
             'message' => 'Booking information updated successfully',
-            'coupon_amount_applied' => $couponAmount // ✅ Optional: return coupon amount
+            'coupon_amount_applied' => $couponAmount
         ]);
     }
 
     public function get_booking(Request $request)
     {
-        $booking = Bookings::where('booking_token', $request->id)->first();
+        $id = $request->id;
+        $booking = Bookings::where('booking_token', $id)
+            ->orWhere('id', $id)
+            ->orWhere('booking_id', $id)
+            ->first();
 
         if (!$booking) {
             return response()->json([
                 'success' => false,
                 'message' => 'Booking not found'
             ], 404);
+        }
+
+        $booking->load('members');
+
+        if ($booking->members->isEmpty() && !empty($booking->data_get)) {
+            $dataGet = is_string($booking->data_get) ? json_decode($booking->data_get, true) : $booking->data_get;
+            if (is_array($dataGet)) {
+                $parsedMembers = [];
+                foreach ($dataGet as $sharingType => $group) {
+                    if (is_array($group) && isset($group['members']) && is_array($group['members'])) {
+                        foreach ($group['members'] as $m) {
+                            $m['sharing_type'] = str_replace('_sharing', '', $sharingType);
+                            $parsedMembers[] = $m;
+                        }
+                    }
+                }
+                if (!empty($parsedMembers)) {
+                    $booking->setRelation('members', collect($parsedMembers));
+                }
+            }
         }
 
         return response()->json([
