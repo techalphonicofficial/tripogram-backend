@@ -1694,7 +1694,8 @@ class BookingsResource extends Resource
                                                         ->label('ID Proof Document')
                                                         ->content(function () use ($member) {
                                                             if (!empty($member['id_proof_file'])) {
-                                                                $url = 'http://localhost/tripo/public/storage/' . ltrim($member['id_proof_file'], '/');
+                                                                $file = ltrim($member['id_proof_file'], '/');
+                                                                $url = url('storage/' . $file);
                                                                 return new \Illuminate\Support\HtmlString("<a href='{$url}' target='_blank' style='display: inline-flex; align-items: center; gap: 4px; color: #2563eb; font-weight: 600; text-decoration: underline;'>📄 View / Download ID Proof</a>");
                                                             }
                                                             return !empty($member['has_file']) ? 'Uploaded' : 'Not Uploaded';
@@ -1757,7 +1758,8 @@ class BookingsResource extends Resource
                                             ->label('ID Proof Document')
                                             ->content(function () use ($member) {
                                                 if (!empty($member->id_proof_file)) {
-                                                    $url = 'http://localhost/tripo/public/storage/' . ltrim($member->id_proof_file, '/');
+                                                    $file = ltrim($member->id_proof_file, '/');
+                                                    $url = url('storage/' . $file);
                                                     return new \Illuminate\Support\HtmlString("<a href='{$url}' target='_blank' style='display: inline-flex; align-items: center; gap: 4px; color: #2563eb; font-weight: 600; text-decoration: underline;'>📄 View / Download ID Proof</a>");
                                                 }
                                                 return $member->has_file ? 'Uploaded' : 'Not Uploaded';
